@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Thi trực tuyến</title>
+<style>
+:root{--bg:#f2f5f7;--c:#fff;--t:#14232e;--m:#5d6f7b;--p:#0b6e8a;--ok:#15803d;--no:#c62828;--wa:#c2670a;--bd:#dbe3e8}
+@media(prefers-color-scheme:dark){:root{--bg:#0e171d;--c:#15222b;--t:#e6eef2;--m:#8fa3af;--p:#1a9bbd;--bd:#243641}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+.top{position:sticky;top:0;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 16px;background:var(--c);border-bottom:1px solid var(--bd)}
+.sp{flex:1}
+.pill{font-size:12px;padding:2px 9px;border-radius:99px;background:#fef3c7;color:#92400e}.pill.on{background:#dcfce7;color:#166534}
+.wrap{max-width:1040px;margin:0 auto;padding:16px}
+.card{background:var(--c);border:1px solid var(--bd);border-radius:12px;padding:18px;margin-bottom:14px}
+h2,h3{margin:0 0 10px}.mu{color:var(--m);font-size:13px}
+label{display:block;font-weight:600;font-size:14px}
+input,select,textarea{width:100%;padding:10px 12px;margin:4px 0 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--t);font:inherit}
+textarea{min-height:80px;resize:vertical}
+button{font:inherit;cursor:pointer;border:0;border-radius:8px;padding:9px 14px;background:var(--p);color:#fff}
+button.b2{background:transparent;color:var(--t);border:1px solid var(--bd)}button.bd{background:var(--no)}button:disabled{opacity:.4;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--p);outline-offset:2px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0 12px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}.tabs button{background:var(--c);color:var(--t);border:1px solid var(--bd)}.tabs button.on{background:var(--p);color:#fff}
+.sticky{position:sticky;top:56px;z-index:4}
+.exam{display:grid;grid-template-columns:1fr 230px;gap:14px;align-items:start}.exam aside{position:sticky;top:130px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;margin:8px 0;border:1px solid var(--bd);border-radius:8px;cursor:pointer;font-weight:400}
+.opt input{width:auto;margin:4px 0}.opt.on{border-color:var(--p);background:#0b6e8a1c}.opt.ok{border-color:var(--ok);background:#15803d22}.opt.no{border-color:var(--no);background:#c6282822}
+.nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:6px}.nav button{padding:8px 0;background:var(--bg);color:var(--t);border:1px solid var(--bd)}
+.nav .done{background:#15803d44}.nav .fl{outline:2px solid var(--wa)}.nav .cur{background:var(--p);color:#fff}
+#tm{font:700 22px ui-monospace,Consolas,monospace}#tm.low{color:var(--no)}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:8px 10px;border-bottom:1px solid var(--bd);text-align:left;white-space:nowrap}
+.st{padding:10px 14px;border-radius:8px;margin:12px 0}.st.ok{background:#15803d22}.st.no{background:#c6282822}.st.w{background:#c2670a22}
+.big{font-size:48px;font-weight:800;color:var(--p)}.ex{margin-top:6px;padding:8px 12px;border-radius:8px;background:#0b6e8a14;font-size:14px}
+.bar{height:8px;border-radius:9px;background:var(--bd);overflow:hidden}.bar i{display:block;height:100%;background:var(--no)}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);max-width:90%;padding:10px 16px;border-radius:8px;background:#111827;color:#fff;opacity:0;pointer-events:none;transition:.2s;z-index:20}#toast.show{opacity:1}#toast.bad{background:var(--no)}
+#md{display:none;position:fixed;inset:0;z-index:15;overflow:auto;padding:16px;background:#0009}#md>div{max-width:760px;margin:0 auto}
+@media(max-width:760px){.exam{grid-template-columns:1fr}.exam aside{position:static}.big{font-size:38px}}
+</style>
+</head>
+<body>
+<header class="top"><b>Thi trực tuyến</b><span id="mode" class="pill"></span><span class="sp"></span><button class="b2" onclick="view('home')">Học viên</button><button class="b2" onclick="view('teacher')">Giáo viên</button></header>
+<main id="app" class="wrap"></main>
+<div id="toast"></div><div id="md" onclick="if(event.target===this)this.style.display='none'"></div>
+<script>
+/* ===== CẤU HÌNH =====
+   WEB_APP_URL: dán URL Web App (Apps Script, đuôi /exec) để MỌI học viên kết nối Google Sheets.
+   (Ô nhập ở Giáo viên ▸ Cài đặt chỉ lưu trên trình duyệt của giáo viên.)
+   Để trống = chế độ Demo/Offline: dữ liệu lưu ngay trên trình duyệt, có sẵn đề mẫu. */
+const WEB_APP_URL='https://script.google.com/macros/s/AKfycbxgL3Ltnjp8OlB7VbQOKKs4TvqEIO1OkmjRnOqIQtV9pXaQIqZohplI406DE89IVfc6/exec';
+const OFFLINE_PASS='1234'; // mật khẩu giáo viên ở chế độ Demo/Offline (khi online dùng PASS trong Code.gs)
+
+const $=s=>document.querySelector(s),L='ABCD';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LS=(k,v)=>v===undefined?JSON.parse(localStorage.getItem(k)||'null'):localStorage.setItem(k,JSON.stringify(v));
+const url=()=>(LS('cfg')||{}).url??WEB_APP_URL;
+const fmt=t=>/T.*Z$/.test(t)?new Date(t).toLocaleString('vi-VN'):t;
+const newD=()=>({id:'',name:'',cls:'',min:30,qs:[]});
+let PW='',ADMIN=false,EX=[],RS=[],FR=[],A=null,T=0,LAST=null,TAB='build',D=newD(),EI=-1,V='home';
+
+const DEMO={id:'DEMO',name:'Đề mẫu – Kiến thức chung',cls:'Mẫu',min:5,qs:[
+{q:'Thủ đô của Việt Nam là thành phố nào?',o:['Huế','Hà Nội','Đà Nẵng','Cần Thơ'],a:1,e:'Hà Nội là thủ đô của nước Cộng hòa Xã hội Chủ nghĩa Việt Nam.',p:2},
+{q:'7 × 8 = ?',o:['56','54','64','58'],a:0,e:'7 × 8 = 56.',p:2},
+{q:'Hành tinh nào gần Mặt Trời nhất?',o:['Sao Hỏa','Sao Kim','Sao Thủy','Trái Đất'],a:2,e:'Sao Thủy là hành tinh gần Mặt Trời nhất.',p:2},
+{q:'Đại dương lớn nhất thế giới là?',o:['Đại Tây Dương','Ấn Độ Dương','Bắc Băng Dương','Thái Bình Dương'],a:3,e:'Thái Bình Dương chiếm khoảng một phần ba diện tích Trái Đất.',p:2},
+{q:'H₂O là công thức hóa học của chất nào?',o:['Muối ăn','Khí oxi','Nước','Cồn'],a:2,e:'H₂O gồm 2 nguyên tử hiđro và 1 nguyên tử oxi: đó là nước.',p:2}]};
+
+function say(m,bad){const t=$('#toast');t.textContent=m;t.className='show'+(bad?' bad':'');clearTimeout(say.h);say.h=setTimeout(()=>t.className='',3000)}
+
+/* ===== DỮ LIỆU: Google Sheets (online) hoặc localStorage (Demo/Offline) ===== */
+async function api(a,d={}){
+ const u=url();
+ if(!u){
+  let ex=LS('exams');if(!ex){ex=[DEMO];LS('exams',ex)}
+  const rs=LS('results')||[];
+  if(a==='saveExam'){ex=ex.filter(e=>e.id!==d.exam.id).concat(d.exam);LS('exams',ex)}
+  if(a==='deleteExam'){ex=ex.filter(e=>e.id!==d.id);LS('exams',ex)}
+  if(a==='submit'&&!rs.some(r=>r.sid===d.result.sid)){rs.push(d.result);LS('results',rs)}
+  return{ok:true,data:a==='exams'?ex:rs}
+ }
+ const r=await(a==='exams'||a==='results'?fetch(u+'?action='+a+'&pw='+encodeURIComponent(PW)):fetch(u,{method:'POST',body:JSON.stringify({...d,action:a,pw:PW})}));
+ const j=await r.json();if(!j.ok)throw new Error(j.error||'Lỗi máy chủ');return j
+}
+async function loadExams(){EX=(await api('exams')).data.map(e=>({...e,id:String(e.id),name:String(e.name),cls:String(e.cls??''),min:+e.min||30}))}
+
+/* ===== ĐIỀU HƯỚNG ===== */
+const VS={home:vHome,exam:vExam,result:vResult,teacher:vTeacher};
+function view(v){
+ if(V==='exam'&&v!=='exam')clearInterval(T);
+ V=v;scrollTo(0,0);VS[v]();
+ const o=!!url();$('#mode').textContent=o?'Online · Google Sheets':'Demo/Offline';$('#mode').className='pill'+(o?' on':'')
+}
+
+/* ===== HỌC VIÊN ===== */
+function vHome(){
+ const d=LS('draft');
+ $('#app').innerHTML=`${d?`<div class="card st w"><b>Bạn có bài đang làm dở:</b> ${esc(d.name)} · ${esc(d.exam.name)}<div class="row" style="margin-top:8px"><button onclick="A=LS('draft');view('exam')">Tiếp tục làm bài</button></div></div>`:''}
+ <div class="card" style="max-width:520px;margin:auto"><h2>Vào thi</h2>
+ <label>Họ và tên<input id="hn" autocomplete="name" placeholder="Nguyễn Văn A"></label>
+ <label>Lớp<input id="hl" placeholder="Ví dụ: 7A"></label>
+ <label>Chọn bài kiểm tra<select id="hs">${EX.map(e=>`<option value="${esc(e.id)}">${esc(e.name)} — ${esc(e.cls)} · ${e.min} phút</option>`).join('')||'<option value="">(Chưa có đề thi)</option>'}</select></label>
+ <label>Hoặc nhập mã đề<input id="hc" placeholder="Mã đề (nếu giáo viên đã cung cấp)"></label>
+ <button style="width:100%" onclick="begin()">Bắt đầu làm bài</button></div>`
+}
+function begin(){
+ const n=$('#hn').value.trim(),c=$('#hl').value.trim(),id=($('#hc').value.trim()||$('#hs').value).toUpperCase();
+ const e=EX.find(x=>x.id.toUpperCase()===id);
+ if(!n||!c)return say('Vui lòng nhập họ tên và lớp',1);
+ if(!e)return say('Không tìm thấy bài kiểm tra hoặc mã đề',1);
+ if(!confirm(`Bắt đầu "${e.name}" — ${e.qs.length} câu, ${e.min} phút?\nĐồng hồ sẽ chạy ngay.`))return;
+ A={sid:'S'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),exam:e,name:n,cls:c,ans:e.qs.map(()=>-1),flag:e.qs.map(()=>0),cur:0,end:Date.now()+e.min*60000};
+ save();view('exam')
+}
+const save=()=>LS('draft',A);
+function vExam(){
+ $('#app').innerHTML=`<div class="card sticky row"><b>${esc(A.exam.name)}</b><span class="sp"></span><span class="mu" id="pg"></span><span id="tm">--:--</span><button class="bd" onclick="finish()">Nộp bài</button></div>
+ <div class="exam"><div id="qa"></div><aside class="card"><b>Danh sách câu hỏi</b><div class="nav" id="nav" style="margin:10px 0"></div><div class="mu">Xanh: đã làm · Viền cam: xem lại · Trắng: chưa làm</div></aside></div>`;
+ renderQ();clearInterval(T);T=setInterval(tick,1000);tick()
+}
+function renderQ(){
+ const e=A.exam,i=A.cur,q=e.qs[i];
+ $('#qa').innerHTML=`<div class="card"><div class="mu">Câu ${i+1}/${e.qs.length} · ${q.p} điểm</div><h3 style="white-space:pre-wrap">${esc(q.q)}</h3>${q.o.map((o,k)=>`<label class="opt${A.ans[i]===k?' on':''}"><input type="radio" name="o" ${A.ans[i]===k?'checked':''} onchange="pick(${k})"><span><b>${L[k]}.</b> ${esc(o)}</span></label>`).join('')}<div class="row" style="margin-top:12px"><button class="b2" onclick="go(${i-1})" ${i?'':'disabled'}>← Trước</button><button class="b2" onclick="flag()">${A.flag[i]?'★ Bỏ đánh dấu':'☆ Đánh dấu xem lại'}</button><span class="sp"></span><button onclick="go(${i+1})" ${i<e.qs.length-1?'':'disabled'}>Sau →</button></div></div>`;
+ $('#nav').innerHTML=e.qs.map((_,j)=>`<button class="${j===i?'cur':A.ans[j]>=0?'done':''} ${A.flag[j]?'fl':''}" onclick="go(${j})">${j+1}</button>`).join('');
+ $('#pg').textContent=`${A.ans.filter(x=>x>=0).length}/${e.qs.length} câu`
+}
+const go=i=>{A.cur=i;save();renderQ()};
+const pick=k=>{A.ans[A.cur]=k;save();renderQ()};
+const flag=()=>{A.flag[A.cur]^=1;save();renderQ()};
+function tick(){
+ const el=$('#tm');if(!el||!A)return;
+ const s=Math.max(0,Math.round((A.end-Date.now())/1000));
+ el.textContent=`${String(s/60|0).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;el.classList.toggle('low',s<60);
+ if(!s){clearInterval(T);say('Hết giờ — hệ thống tự động nộp bài');finish(true)}
+}
+function finish(auto){
+ if(!A)return;
+ if(!auto){const n=A.ans.filter(x=>x<0).length;if(!confirm(n?`Bạn còn ${n} câu chưa làm. Vẫn nộp bài?`:'Xác nhận nộp bài?'))return}
+ clearInterval(T);
+ const e=A.exam,wrong=[];let got=0,tot=0,right=0;
+ e.qs.forEach((q,i)=>{tot+=q.p;if(A.ans[i]===q.a){got+=q.p;right++}else wrong.push(i+1)});
+ const r={sid:A.sid,time:new Date().toISOString(),name:A.name,cls:A.cls,id:e.id,exam:e.name,score:Math.round(got/(tot||1)*1000)/100,right,total:e.qs.length,wrong,ans:A.ans};
+ LAST={r,exam:e,sent:false};LS('last',LAST);localStorage.removeItem('draft');A=null;
+ view('result');send()
+}
+const setSt=(m,c)=>{const s=$('#sv');if(s){s.className='st '+c;s.innerHTML=m}};
+async function send(){
+ setSt('Đang lưu điểm lên Google Sheets...','w');
+ try{await api('submit',{result:LAST.r});LAST.sent=true;LS('last',LAST);setSt('✔ Đã lưu điểm thành công','ok')}
+ catch(e){setSt('✖ Chưa lưu được điểm (mạng chập chờn). <button onclick="send()">Gửi lại</button>','no')}
+}
+const review=(q,i,a)=>{
+ const s=a===undefined?'':a===q.a?' · <b style="color:var(--ok)">Đúng</b>':a<0?' · <b style="color:var(--wa)">Chưa làm</b>':' · <b style="color:var(--no)">Sai</b>';
+ return`<div class="card"><div class="mu">Câu ${i+1}${s}</div><h3 style="white-space:pre-wrap">${esc(q.q)}</h3>${q.o.map((o,k)=>`<div class="opt ${k===q.a?'ok':k===a?'no':''}"><span><b>${L[k]}.</b> ${esc(o)} ${k===q.a?'✔':k===a?'✖ (đã chọn)':''}</span></div>`).join('')}${q.e?`<div class="ex">Giải thích: ${esc(q.e)}</div>`:''}</div>`
+};
+function vResult(){
+ const{r,exam:e}=LAST;
+ $('#app').innerHTML=`<div class="card" style="text-align:center"><div class="mu">${esc(r.name)} · ${esc(r.cls)} · ${esc(e.name)}</div><div class="big">${r.score}<small style="font-size:20px">/10</small></div><div>Đúng <b style="color:var(--ok)">${r.right}</b> · Sai <b style="color:var(--no)">${r.total-r.right}</b> · Tổng ${r.total} câu</div><div id="sv" class="st w"></div><button class="b2" onclick="if(LAST.sent||confirm('Điểm chưa được lưu! Vẫn thoát?')){localStorage.removeItem('last');view('home')}">Về trang chủ</button></div><h3>Xem lại bài làm</h3>${e.qs.map((q,i)=>review(q,i,r.ans[i])).join('')}`
+}
+
+/* ===== GIÁO VIÊN ===== */
+function vTeacher(){
+ if(!ADMIN){$('#app').innerHTML=`<div class="card" style="max-width:420px;margin:auto"><h2>Khu vực giáo viên</h2><label>Mật khẩu<input id="pw" type="password" onkeydown="if(event.key==='Enter')login()"></label><button style="width:100%" onclick="login()">Đăng nhập</button><p class="mu">Chế độ Demo/Offline: mật khẩu mặc định là 1234.</p></div>`;return}
+ $('#app').innerHTML=`<div class="tabs">${[['build','Tạo đề thi'],['res','Kết quả'],['set','Cài đặt']].map(([k,t])=>`<button class="${TAB===k?'on':''}" onclick="TAB='${k}';vTeacher()">${t}</button>`).join('')}<span class="sp"></span><button class="b2" onclick="ADMIN=false;PW='';vTeacher()">Đăng xuất</button></div><div id="tb"></div>`;
+ ({build:tBuild,res:tRes,set:tSet})[TAB]()
+}
+async function login(){
+ PW=$('#pw').value;
+ try{if(url())await api('results');else if(PW!==OFFLINE_PASS)throw 0;ADMIN=true;await loadExams().catch(()=>0);vTeacher()}
+ catch(e){PW='';say('Sai mật khẩu hoặc không kết nối được máy chủ',1)}
+}
+const modal=h=>{$('#md').innerHTML=`<div>${h}</div>`;$('#md').style.display='block'};
+const sync=()=>{D.name=$('#dn').value.trim();D.cls=$('#dc').value.trim();D.min=+$('#dm').value||30;D.id=$('#di').value.trim().toUpperCase()};
+
+function tBuild(){
+ $('#tb').innerHTML=`<div class="card"><h3>1. Thông tin bài kiểm tra</h3><div class="g2">
+ <label>Tên bài kiểm tra<input id="dn" value="${esc(D.name)}"></label><label>Lớp/Khối<input id="dc" value="${esc(D.cls)}"></label>
+ <label>Thời gian làm bài (phút)<input id="dm" type="number" min="1" value="${D.min}"></label><label>Mã đề<input id="di" value="${esc(D.id)}" placeholder="Để trống để tự tạo"></label></div></div>
+ <div class="card"><h3>2. ${EI<0?'Thêm từng câu hỏi':'Sửa câu '+(EI+1)}</h3>
+ <textarea id="qq" placeholder="Nội dung câu hỏi"></textarea>
+ <div class="g2">${[0,1,2,3].map(k=>`<label>Đáp án ${L[k]}<input id="o${k}"></label>`).join('')}</div>
+ <div class="row" style="margin-bottom:8px"><b>Đáp án đúng:</b>${[0,1,2,3].map(k=>`<label style="display:inline;font-weight:400"><input type="radio" name="ca" value="${k}" style="width:auto;margin:0 4px" ${k?'':'checked'}>${L[k]}</label>`).join('')}</div>
+ <label>Giải thích (hiện sau khi nộp bài)<input id="qe"></label><label>Điểm của câu<input id="qp" type="number" step="0.25" min="0.25" value="1" style="max-width:120px"></label>
+ <div class="row"><button onclick="addQ()">${EI<0?'Thêm câu':'Cập nhật câu'}</button>${EI<0?'':'<button class="b2" onclick="sync();EI=-1;tBuild()">Hủy sửa</button>'}</div></div>
+ <div class="card"><h3>3. Nhập hàng loạt</h3><p class="mu">Mỗi câu một đoạn, cách nhau một dòng trống. Đặt dấu * trước đáp án đúng. Dòng "Giải thích:" và "Điểm:" là tùy chọn.</p>
+ <textarea id="bk" style="min-height:160px" placeholder="Câu 1: Thủ đô của Việt Nam là?
+A. Huế
+*B. Hà Nội
+C. Đà Nẵng
+D. Cần Thơ
+Giải thích: Hà Nội là thủ đô.
+Điểm: 1"></textarea><button onclick="bulk()">Tách thành câu hỏi</button></div>
+ <div class="card"><h3>4. Danh sách câu hỏi (${D.qs.length})</h3>${D.qs.map((q,i)=>`<div class="row" style="border-bottom:1px solid var(--bd);padding:6px 0"><span style="flex:1"><b>${i+1}.</b> ${esc(q.q.slice(0,90))} <span class="mu">· đáp án ${L[q.a]} · ${q.p} điểm</span></span><button class="b2" onclick="editQ(${i})">Sửa</button><button class="bd" onclick="sync();D.qs.splice(${i},1);EI=-1;tBuild()">Xóa</button></div>`).join('')||'<p class="mu">Chưa có câu hỏi nào.</p>'}
+ <div class="row" style="margin-top:12px"><button class="b2" onclick="preview()">Xem trước đề</button><button onclick="saveExam()">Lưu đề lên hệ thống</button><button class="b2" onclick="D=newD();EI=-1;tBuild()">Tạo đề mới</button></div></div>
+ <div class="card"><h3>Đề đã lưu (${EX.length})</h3><div class="tw"><table><tr><th>Mã đề</th><th>Tên bài</th><th>Lớp</th><th>Số câu</th><th>Phút</th><th></th></tr>${EX.map((e,i)=>`<tr><td>${esc(e.id)}</td><td>${esc(e.name)}</td><td>${esc(e.cls)}</td><td>${e.qs.length}</td><td>${e.min}</td><td><button class="b2" onclick="D=JSON.parse(JSON.stringify(EX[${i}]));EI=-1;tBuild();scrollTo(0,0)">Sửa</button> <button class="bd" onclick="delExam(${i})">Xóa</button></td></tr>`).join('')}</table></div></div>`
+}
+function addQ(){
+ sync();
+ const q={q:$('#qq').value.trim(),o:[0,1,2,3].map(k=>$('#o'+k).value.trim()),a:+document.querySelector('input[name=ca]:checked').value,e:$('#qe').value.trim(),p:+$('#qp').value||1};
+ if(!q.q||q.o.some(x=>!x))return say('Cần nhập nội dung câu hỏi và đủ 4 đáp án',1);
+ if(EI<0)D.qs.push(q);else D.qs[EI]=q;
+ EI=-1;tBuild();say('Đã lưu câu hỏi')
+}
+function editQ(i){
+ sync();EI=i;tBuild();const q=D.qs[i];
+ $('#qq').value=q.q;q.o.forEach((o,k)=>$('#o'+k).value=o);
+ document.querySelector(`input[name=ca][value="${q.a}"]`).checked=true;$('#qe').value=q.e||'';$('#qp').value=q.p;$('#qq').scrollIntoView({behavior:'smooth'})
+}
+function bulk(){
+ sync();let n=0,bad=0;
+ $('#bk').value.replace(/\r/g,'').split(/\n\s*\n/).forEach(b=>{
+  if(!b.trim())return;
+  const q=[],o=[],r={e:'',p:1};let a=-1,m;
+  b.split('\n').forEach(l=>{
+   l=l.trim();if(!l)return;
+   if(m=l.match(/^(\*)?\s*([A-Da-d])[.)]\s*(.+)$/)){if(m[1])a=o.length;o.push(m[3])}
+   else if(m=l.match(/^(?:giải thích|gt)\s*:\s*(.*)$/i))r.e=m[1];
+   else if(m=l.match(/^(?:điểm|diem)\s*:\s*([\d.]+)/i))r.p=+m[1]||1;
+   else if(!o.length)q.push(l)
+  });
+  const t=q.join('\n').replace(/^(?:câu|cau|question)?\s*\d+\s*[:.)\-]\s*/i,'');
+  if(t&&o.length===4&&a>=0){D.qs.push({q:t,o,a,e:r.e,p:r.p});n++}else bad++
+ });
+ tBuild();say(`Đã nhập ${n} câu${bad?`, bỏ qua ${bad} đoạn lỗi (cần đủ 4 đáp án và 1 dấu *)`:''}`,!n)
+}
+function preview(){
+ sync();if(!D.qs.length)return say('Chưa có câu hỏi để xem trước',1);
+ modal(`<div class="card row"><h3 style="margin:0;flex:1">${esc(D.name)||'(Chưa đặt tên)'} · ${D.min} phút · ${D.qs.length} câu</h3><button onclick="$('#md').style.display='none'">Đóng</button></div>${D.qs.map((q,i)=>review(q,i)).join('')}`)
+}
+async function saveExam(){
+ sync();
+ if(!D.name||!D.qs.length)return say('Cần có tên bài kiểm tra và ít nhất 1 câu hỏi',1);
+ if(!D.id)D.id='DE'+Math.random().toString(36).slice(2,6).toUpperCase();
+ try{await api('saveExam',{exam:D});await loadExams();say('✔ Đã lưu đề, mã đề: '+D.id);tBuild()}
+ catch(e){say('Lỗi lưu đề: '+e.message,1)}
+}
+async function delExam(i){
+ if(!confirm('Xóa đề '+EX[i].id+'?'))return;
+ try{await api('deleteExam',{id:EX[i].id});await loadExams();tBuild()}catch(e){say(e.message,1)}
+}
+
+/* --- Bảng thống kê kết quả --- */
+async function tRes(){
+ $('#tb').innerHTML='<div class="card">Đang tải dữ liệu bài làm...</div>';
+ try{RS=(await api('results')).data.map(r=>({...r,name:String(r.name),cls:String(r.cls),id:String(r.id),score:+r.score,right:+r.right,total:+r.total,wrong:r.wrong||[]}));await loadExams()}
+ catch(e){$('#tb').innerHTML=`<div class="card st no">Không tải được dữ liệu: ${esc(e.message)}</div>`;return}
+ $('#tb').innerHTML=`<div class="card"><div class="g2"><label>Tìm theo tên học viên<input id="fq" oninput="filt()"></label><label>Lớp<select id="fc" onchange="filt()"><option value="">Tất cả</option>${[...new Set(RS.map(r=>r.cls))].sort().map(c=>`<option>${esc(c)}</option>`).join('')}</select></label><label>Bài kiểm tra (mã đề)<select id="fx" onchange="filt()"><option value="">Tất cả</option>${[...new Set(RS.map(r=>r.id))].map(c=>`<option>${esc(c)}</option>`).join('')}</select></label></div><div class="row"><button class="b2" onclick="tRes()">Tải lại</button><button onclick="csv()">Xuất CSV/Excel</button></div></div><div id="st"></div>`;
+ filt()
+}
+function filt(){
+ const q=$('#fq').value.toLowerCase(),c=$('#fc').value,x=$('#fx').value;
+ FR=RS.filter(r=>(!q||r.name.toLowerCase().includes(q))&&(!c||r.cls===c)&&(!x||r.id===x)).reverse();
+ const s=FR.map(r=>r.score),n=s.length,f=v=>n?v.toFixed(2):'–';
+ let h=`<div class="g2" style="margin-bottom:14px">${[['Số bài làm',n],['Điểm trung bình',f(s.reduce((a,b)=>a+b,0)/n)],['Điểm cao nhất',f(Math.max(...s))],['Điểm thấp nhất',f(Math.min(...s))]].map(([k,v])=>`<div class="card" style="margin:0"><div class="mu">${k}</div><div style="font-size:26px;font-weight:700">${v}</div></div>`).join('')}</div>`;
+ const ex=EX.find(e=>e.id===x);
+ if(ex&&n){
+  const cnt=ex.qs.map((_,i)=>FR.filter(r=>r.wrong.includes(i+1)).length);
+  h+=`<div class="card"><h3>Tỷ lệ làm sai từng câu (câu sai nhiều nhất ở trên)</h3>${ex.qs.map((q,i)=>[i,cnt[i]]).sort((a,b)=>b[1]-a[1]).map(([i,k])=>`<div style="margin:10px 0"><div class="row"><span style="flex:1">Câu ${i+1}: ${esc(ex.qs[i].q.slice(0,70))}</span><b>${Math.round(k/n*100)}%</b><span class="mu">(${k}/${n})</span></div><div class="bar"><i style="width:${k/n*100}%"></i></div></div>`).join('')}</div>`
+ }else h+='<p class="mu">Chọn một bài kiểm tra ở bộ lọc để xem tỷ lệ làm sai từng câu.</p>';
+ h+=`<div class="card tw"><table><tr><th>Họ tên</th><th>Lớp</th><th>Mã đề</th><th>Điểm</th><th>Đúng/Tổng</th><th>Nộp lúc</th><th>Câu sai (bấm để xem chi tiết)</th></tr>${FR.map((r,i)=>`<tr><td>${esc(r.name)}</td><td>${esc(r.cls)}</td><td>${esc(r.id)}</td><td><b>${r.score}</b></td><td>${r.right}/${r.total}</td><td>${esc(fmt(r.time))}</td><td>${r.wrong.length?`<a href="#" onclick="detail(${i});return false">${r.wrong.join(', ')}</a>`:'—'}</td></tr>`).join('')}</table></div>`;
+ $('#st').innerHTML=h
+}
+function detail(i){
+ const r=FR[i],e=EX.find(x=>x.id===r.id);
+ modal(`<div class="card row"><h3 style="margin:0;flex:1">${esc(r.name)} · ${esc(r.cls)} — ${r.score}/10</h3><button onclick="$('#md').style.display='none'">Đóng</button></div>${e?r.wrong.filter(n=>e.qs[n-1]).map(n=>review(e.qs[n-1],n-1,(r.ans||[])[n-1]??-1)).join(''):`<div class="card">Câu sai: ${r.wrong.join(', ')} (không tìm thấy đề ${esc(r.id)} để hiển thị chi tiết)</div>`}`)
+}
+function csv(){
+ const c=v=>`"${String(v??'').replace(/"/g,'""')}"`;
+ const t=[['Họ tên','Lớp','Mã đề','Tên bài','Điểm (10)','Số câu đúng','Tổng câu','Nộp lúc','Câu sai']].concat(FR.map(r=>[r.name,r.cls,r.id,r.exam,r.score,r.right,r.total,fmt(r.time),r.wrong.join(' ')])).map(r=>r.map(c).join(',')).join('\r\n');
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(new Blob(['\ufeffsep=,\r\n'+t],{type:'text/csv;charset=utf-8'}));
+ a.download='ket-qua-'+new Date().toISOString().slice(0,10)+'.csv';a.click()
+}
+
+/* --- Cài đặt --- */
+function tSet(){
+ $('#tb').innerHTML=`<div class="card"><h3>Kết nối Google Sheets</h3><label>Web App URL (Apps Script)<input id="su" value="${esc(url())}" placeholder="https://script.google.com/macros/s/.../exec"></label><div class="row"><button onclick="setUrl($('#su').value.trim())">Lưu URL</button><button class="b2" onclick="setUrl('')">Dùng Demo/Offline</button></div><p class="mu">Chế độ hiện tại: <b>${url()?'Online (Google Sheets)':'Demo/Offline — dữ liệu lưu trên trình duyệt này'}</b>. Khi có URL, mật khẩu giáo viên là biến PASS trong Code.gs. Đổi chế độ xong cần đăng nhập lại. Để học viên ở máy khác cũng kết nối được, hãy điền URL vào biến WEB_APP_URL đầu file.</p></div>
+ <div class="card"><h3>Dữ liệu Demo/Offline</h3><button class="bd" onclick="wipe()">Xóa đề và kết quả offline, nạp lại đề mẫu</button></div>`
+}
+async function setUrl(u){
+ LS('cfg',{url:u});ADMIN=false;PW='';
+ try{await loadExams()}catch(e){say('Chưa kết nối được URL này',1)}
+ view('teacher')
+}
+function wipe(){
+ if(!confirm('Xóa toàn bộ đề và kết quả offline trên trình duyệt này?'))return;
+ ['exams','results','draft','last'].forEach(k=>localStorage.removeItem(k));init()
+}
+
+/* ===== KHỞI ĐỘNG ===== */
+async function init(){
+ try{await loadExams()}catch(e){say('Không tải được danh sách đề: '+e.message,1)}
+ const d=LS('draft'),l=LS('last');
+ if(d){A=d;view('exam')}                       // tải lại trang giữa chừng: làm tiếp bài, đồng hồ không bị reset
+ else if(l&&!l.sent){LAST=l;view('result');send()} // điểm chưa gửi được: tự gửi lại
+ else view('home')
+}
+init();
+</script>
+</body>
+</html>
