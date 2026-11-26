@@ -73,6 +73,10 @@ function say(m,bad){const t=$('#toast');t.textContent=m;t.className='show'+(bad?
 async function api(a,d={}){
  const u=url();
  if(!u){
+  if(a==='lib')return{ok:true,data:LS('lib')||[]};
+  if(a==='libUpload'){const l=LS('lib')||[];l.push({...d.meta,id:'L'+Date.now().toString(36),at:new Date().toLocaleString('vi-VN')});LS('lib',l);return{ok:true}}
+  if(a==='libDelete'){LS('lib',(LS('lib')||[]).filter(x=>x.id!==d.id));return{ok:true}}
+  if(a==='libFile')throw new Error('Chế độ Demo/Offline không lưu tệp gốc (chỉ lưu bản phân tích)');
   let ex=LS('exams');if(!ex){ex=[DEMO];LS('exams',ex)}
   const rs=LS('results')||[];
   if(a==='saveExam'){ex=ex.filter(e=>e.id!==d.exam.id).concat(d.exam);LS('exams',ex)}
@@ -80,7 +84,7 @@ async function api(a,d={}){
   if(a==='submit'&&!rs.some(r=>r.sid===d.result.sid)){rs.push(d.result);LS('results',rs)}
   return{ok:true,data:a==='exams'?ex:rs}
  }
- const r=await(a==='exams'||a==='results'?fetch(u+'?action='+a+'&pw='+encodeURIComponent(PW)):fetch(u,{method:'POST',body:JSON.stringify({...d,action:a,pw:PW})}));
+ const r=await(/^(exams|results|lib|libFile)$/.test(a)?fetch(u+'?action='+a+'&pw='+encodeURIComponent(PW)+'&id='+encodeURIComponent(d.id||'')):fetch(u,{method:'POST',body:JSON.stringify({...d,action:a,pw:PW})}));
  const j=await r.json();if(!j.ok)throw new Error(j.error||'Lỗi máy chủ');return j
 }
 async function loadExams(){EX=(await api('exams')).data.map(e=>({...e,id:String(e.id),name:String(e.name),cls:String(e.cls??''),min:+e.min||30}))}
@@ -162,8 +166,8 @@ function vResult(){
 /* ===== GIÁO VIÊN ===== */
 function vTeacher(){
  if(!ADMIN){$('#app').innerHTML=`<div class="card" style="max-width:420px;margin:auto"><h2>Khu vực giáo viên</h2><label>Mật khẩu<input id="pw" type="password" onkeydown="if(event.key==='Enter')login()"></label><button style="width:100%" onclick="login()">Đăng nhập</button><p class="mu">Chế độ Demo/Offline: mật khẩu mặc định là 1234.</p></div>`;return}
- $('#app').innerHTML=`<div class="tabs">${[['build','Tạo đề thi'],['res','Kết quả'],['set','Cài đặt']].map(([k,t])=>`<button class="${TAB===k?'on':''}" onclick="TAB='${k}';vTeacher()">${t}</button>`).join('')}<span class="sp"></span><button class="b2" onclick="ADMIN=false;PW='';vTeacher()">Đăng xuất</button></div><div id="tb"></div>`;
- ({build:tBuild,res:tRes,set:tSet})[TAB]()
+ $('#app').innerHTML=`<div class="tabs">${[['build','Tạo đề thi'],['res','Kết quả'],['lib','Học liệu'],['set','Cài đặt']].map(([k,t])=>`<button class="${TAB===k?'on':''}" onclick="TAB='${k}';vTeacher()">${t}</button>`).join('')}<span class="sp"></span><button class="b2" onclick="ADMIN=false;PW='';vTeacher()">Đăng xuất</button></div><div id="tb"></div>`;
+ ({build:tBuild,res:tRes,lib:tLib,set:tSet})[TAB]()
 }
 async function login(){
  PW=$('#pw').value;
@@ -271,6 +275,82 @@ function csv(){
  const a=document.createElement('a');
  a.href=URL.createObjectURL(new Blob(['\ufeffsep=,\r\n'+t],{type:'text/csv;charset=utf-8'}));
  a.download='ket-qua-'+new Date().toISOString().slice(0,10)+'.csv';a.click()
+}
+
+/* --- Học liệu theo cấp (dùng chung cho giáo viên) --- */
+const LV={Kid:['1','2','3','4'],Junior:['1','2','3','4','5','6','7','8+'],Teen:['1','2','3','4'],IELTS:['1','2','3','4','5']};
+let LIB=[],LP='Kid',LL='1';const JS={};
+const STOP=new Set('the and for are was were but not you your with that this from have has had they them their there here what which when where who how why all any can could will would should may might must just also into out about than then too very its our his her him she nor yet one two did does done been being get got let say said use used like more most some such only own same other these those because while after before over under again each both few many much'.split(' '));
+const rd=f=>f>=80?'Dễ':f>=60?'Vừa':f>=30?'Khó':'Rất khó';
+const need=(k,src)=>JS[k]||(JS[k]=new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>{delete JS[k];no(new Error('Không tải được thư viện đọc tệp (cần internet)'))};document.head.appendChild(s)}));
+const b64=f=>new Promise(r=>{const x=new FileReader();x.onload=()=>r(x.result.split(',')[1]);x.readAsDataURL(f)});
+async function extract(f,st){
+ const ext=f.name.split('.').pop().toLowerCase();
+ if(ext==='docx'){await need('m','https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js');return(await mammoth.extractRawText({arrayBuffer:await f.arrayBuffer()})).value}
+ if(ext==='pdf'){
+  await need('p','https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js');
+  pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  const d=await pdfjsLib.getDocument({data:await f.arrayBuffer()}).promise;let t='';
+  for(let i=1;i<=d.numPages;i++){st(`Đọc PDF: trang ${i}/${d.numPages}`);t+=(await(await d.getPage(i)).getTextContent()).items.map(x=>x.str).join(' ')+'\n'}
+  return t
+ }
+ await need('t','https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js');
+ st('Nhận dạng chữ trong ảnh (OCR), có thể mất vài chục giây...');
+ return(await Tesseract.recognize(f,'eng')).data.text
+}
+function analyze(t){
+ const w=t.toLowerCase().match(/[a-z]+(?:'[a-z]+)?/g)||[],s=(t.match(/[.!?]+(\s|$)/g)||[]).length||1,f={};
+ w.forEach(x=>{if(x.length>2&&!STOP.has(x))f[x]=(f[x]||0)+1});
+ const syl=w.reduce((n,x)=>n+Math.max(1,(x.replace(/e$/,'').match(/[aeiouy]+/g)||[]).length),0);
+ return{words:w.length,uniq:new Set(w).size,sents:s,fre:w.length?Math.round(206.835-1.015*w.length/s-84.6*syl/w.length):0,top:Object.entries(f).sort((a,b)=>b[1]-a[1]).slice(0,40)}
+}
+async function tLib(){
+ $('#tb').innerHTML='<div class="card">Đang tải học liệu...</div>';
+ try{LIB=(await api('lib')).data.map(x=>({...x,id:String(x.id),prog:String(x.prog),lvl:String(x.lvl),size:+x.size||0,stats:x.stats||{}}))}
+ catch(e){$('#tb').innerHTML=`<div class="card st no">Không tải được học liệu: ${esc(e.message)}</div>`;return}
+ libView()
+}
+function libView(){
+ const cur=LIB.filter(x=>x.prog===LP&&x.lvl===LL),g={words:0,fre:0,top:{}};
+ cur.forEach(x=>{const s=x.stats;g.words+=s.words||0;g.fre+=s.fre||0;(s.top||[]).forEach(([k,v])=>g.top[k]=(g.top[k]||0)+v)});
+ const top=Object.entries(g.top).sort((a,b)=>b[1]-a[1]).slice(0,30);
+ $('#tb').innerHTML=`<div class="card"><h3>Học liệu theo cấp độ (dùng chung cho giáo viên)</h3>${Object.entries(LV).map(([p,ls])=>`<div class="row" style="margin:6px 0"><b style="width:64px">${p}</b>${ls.map(l=>`<button class="${p===LP&&l===LL?'':'b2'}" onclick="LP='${p}';LL='${l}';libView()">${l} (${LIB.filter(x=>x.prog===p&&x.lvl===l).length})</button>`).join('')}</div>`).join('')}<p class="mu">Số trong ngoặc là số tài liệu đã có ở từng cấp.</p></div>
+ <div class="card"><h3>Tổng hợp: ${LP} ${LL}</h3>${cur.length?`<div class="g2"><div><div class="mu">Số tài liệu</div><b style="font-size:24px">${cur.length}</b></div><div><div class="mu">Tổng số từ</div><b style="font-size:24px">${g.words}</b></div><div><div class="mu">Độ khó trung bình</div><b style="font-size:24px">${rd(Math.round(g.fre/cur.length))}</b></div></div><p class="mu" style="margin-top:12px">Từ vựng xuất hiện nhiều nhất ở cấp này:</p><div class="row">${top.map(([k,v])=>`<span class="pill on">${esc(k)} · ${v}</span>`).join('')||'<span class="mu">Chưa trích được từ vựng.</span>'}</div>`:'<p class="mu">Chưa có tài liệu ở cấp này.</p>'}</div>
+ <div class="card"><h3>Tài liệu cấp ${LP} ${LL}</h3><div class="tw"><table><tr><th>Tên tệp</th><th>Loại</th><th>Dung lượng</th><th>Số từ</th><th>Độ khó</th><th>Ngày tải</th><th></th></tr>${cur.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.type)}</td><td>${(x.size/1048576).toFixed(2)} MB</td><td>${x.stats.words||0}</td><td>${rd(x.stats.fre||0)}</td><td>${esc(fmt(x.at))}</td><td><button class="b2" onclick="statLib('${x.id}')">Phân tích</button> <button class="b2" onclick="dlLib('${x.id}')">Tải về</button> <button class="bd" onclick="delLib('${x.id}')">Xóa</button></td></tr>`).join('')}</table></div></div>
+ <div class="card"><h3>Tải học liệu lên cấp ${LP} ${LL}</h3><label>Tệp (.docx, .pdf, .png; tối đa 8 MB mỗi tệp)<input id="lf" type="file" accept=".docx,.pdf,.png" multiple></label><label>Mật khẩu quản trị (chỉ chủ lớp mới tải lên và xóa được)<input id="la" type="password"></label><button onclick="upLib()">Tải lên và phân tích</button><div id="ls" class="mu" style="margin-top:8px"></div></div>`
+}
+async function upLib(){
+ const fs=[...$('#lf').files],apw=$('#la').value,st=m=>$('#ls').textContent=m;
+ if(!fs.length)return say('Hãy chọn tệp cần tải lên',1);
+ if(!apw)return say('Cần nhập mật khẩu quản trị',1);
+ let ok=0;
+ for(const f of fs){
+  try{
+   if(!/\.(docx|pdf|png)$/i.test(f.name))throw new Error('chỉ nhận .docx, .pdf, .png');
+   if(f.size>8*1048576)throw new Error('vượt quá 8 MB');
+   st(`Đang xử lý ${f.name}...`);
+   const stats=analyze(await extract(f,st));
+   if(!stats.words)say(f.name+': không trích được chữ (PDF scan? hãy tải lên dạng PNG để OCR)',1);
+   st(`Đang tải ${f.name} lên...`);
+   await api('libUpload',{apw,meta:{prog:LP,lvl:LL,name:f.name,type:f.name.split('.').pop().toLowerCase(),size:f.size,stats},data:await b64(f)});ok++
+  }catch(e){say(`${f.name}: ${e.message}`,1)}
+ }
+ if(ok)say(`✔ Đã tải lên ${ok} tệp`);
+ tLib()
+}
+async function dlLib(id){
+ try{const j=await api('libFile',{id}),a=document.createElement('a');
+  a.href=URL.createObjectURL(await(await fetch('data:application/octet-stream;base64,'+j.data)).blob());a.download=j.name;a.click()}
+ catch(e){say(e.message,1)}
+}
+async function delLib(id){
+ const apw=($('#la')||{}).value||prompt('Nhập mật khẩu quản trị để xóa:');
+ if(!apw||!confirm('Xóa tài liệu này?'))return;
+ try{await api('libDelete',{id,apw});say('Đã xóa tài liệu');tLib()}catch(e){say(e.message,1)}
+}
+function statLib(id){
+ const x=LIB.find(y=>y.id===id),s=x.stats;
+ modal(`<div class="card row"><h3 style="margin:0;flex:1">${esc(x.name)}</h3><button onclick="$('#md').style.display='none'">Đóng</button></div><div class="card"><div class="g2"><div><div class="mu">Số từ</div><b>${s.words||0}</b></div><div><div class="mu">Từ khác nhau</div><b>${s.uniq||0}</b></div><div><div class="mu">Số câu</div><b>${s.sents||0}</b></div><div><div class="mu">Độ khó (Flesch ${s.fre||0})</div><b>${rd(s.fre||0)}</b></div></div><p class="mu" style="margin-top:12px">Từ vựng nổi bật:</p><div class="row">${(s.top||[]).map(([k,v])=>`<span class="pill on">${esc(k)} · ${v}</span>`).join('')||'<span class="mu">Chưa trích được từ vựng.</span>'}</div></div>`)
 }
 
 /* --- Cài đặt --- */
