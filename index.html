@@ -49,7 +49,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
    WEB_APP_URL: dán URL Web App (Apps Script, đuôi /exec) để MỌI học viên kết nối Google Sheets.
    (Ô nhập ở Giáo viên ▸ Cài đặt chỉ lưu trên trình duyệt của giáo viên.)
    Để trống = chế độ Demo/Offline: dữ liệu lưu ngay trên trình duyệt, có sẵn đề mẫu. */
-const WEB_APP_URL='https://script.google.com/macros/s/AKfycbxgL3Ltnjp8OlB7VbQOKKs4TvqEIO1OkmjRnOqIQtV9pXaQIqZohplI406DE89IVfc6/exec';
+const WEB_APP_URL='';
 const OFFLINE_PASS='1234'; // mật khẩu giáo viên ở chế độ Demo/Offline (khi online dùng PASS trong Code.gs)
 
 const $=s=>document.querySelector(s),L='ABCD';
@@ -166,8 +166,8 @@ function vResult(){
 /* ===== GIÁO VIÊN ===== */
 function vTeacher(){
  if(!ADMIN){$('#app').innerHTML=`<div class="card" style="max-width:420px;margin:auto"><h2>Khu vực giáo viên</h2><label>Mật khẩu<input id="pw" type="password" onkeydown="if(event.key==='Enter')login()"></label><button style="width:100%" onclick="login()">Đăng nhập</button><p class="mu">Chế độ Demo/Offline: mật khẩu mặc định là 1234.</p></div>`;return}
- $('#app').innerHTML=`<div class="tabs">${[['build','Tạo đề thi'],['res','Kết quả'],['lib','Học liệu'],['set','Cài đặt']].map(([k,t])=>`<button class="${TAB===k?'on':''}" onclick="TAB='${k}';vTeacher()">${t}</button>`).join('')}<span class="sp"></span><button class="b2" onclick="ADMIN=false;PW='';vTeacher()">Đăng xuất</button></div><div id="tb"></div>`;
- ({build:tBuild,res:tRes,lib:tLib,set:tSet})[TAB]()
+ $('#app').innerHTML=`<div class="tabs">${[['build','Tạo đề thi'],['ai','Tạo đề bằng AI'],['res','Kết quả'],['lib','Học liệu'],['set','Cài đặt']].map(([k,t])=>`<button class="${TAB===k?'on':''}" onclick="TAB='${k}';vTeacher()">${t}</button>`).join('')}<span class="sp"></span><button class="b2" onclick="ADMIN=false;PW='';vTeacher()">Đăng xuất</button></div><div id="tb"></div>`;
+ ({build:tBuild,ai:tAI,res:tRes,lib:tLib,set:tSet})[TAB]()
 }
 async function login(){
  PW=$('#pw').value;
@@ -353,9 +353,68 @@ function statLib(id){
  modal(`<div class="card row"><h3 style="margin:0;flex:1">${esc(x.name)}</h3><button onclick="$('#md').style.display='none'">Đóng</button></div><div class="card"><div class="g2"><div><div class="mu">Số từ</div><b>${s.words||0}</b></div><div><div class="mu">Từ khác nhau</div><b>${s.uniq||0}</b></div><div><div class="mu">Số câu</div><b>${s.sents||0}</b></div><div><div class="mu">Độ khó (Flesch ${s.fre||0})</div><b>${rd(s.fre||0)}</b></div></div><p class="mu" style="margin-top:12px">Từ vựng nổi bật:</p><div class="row">${(s.top||[]).map(([k,v])=>`<span class="pill on">${esc(k)} · ${v}</span>`).join('')||'<span class="mu">Chưa trích được từ vựng.</span>'}</div></div>`)
 }
 
+/* --- Trợ lý AI tạo đề từ tài liệu (chỉ giáo viên) --- */
+const AI=()=>({prov:'gemini',key:'',model:'',...LS('ai')});
+function saveAI(){LS('ai',{prov:$('#ap').value,key:$('#ak').value.trim(),model:$('#am').value.trim()});say('Đã lưu cấu hình AI trên trình duyệt này')}
+function tAI(){
+ const c=AI();
+ $('#tb').innerHTML=`<div class="card"><h3>Trợ lý AI: tạo đề từ tài liệu</h3><p class="mu">Câu hỏi AI soạn sẽ được đưa vào tab Tạo đề thi để bạn rà soát và sửa trước khi lưu. Học viên không nhìn thấy tính năng này.${c.prov!=='proxy'&&!c.key?' <b style="color:var(--no)">Chưa có API Key: vào Cài đặt để nhập.</b>':''}</p>
+ <label>1. Dán nội dung tài liệu (bài đọc, từ vựng, tóm tắt ngữ pháp...)<textarea id="at" style="min-height:200px" placeholder="Dán văn bản vào đây, hoặc chọn tệp bên dưới"></textarea></label>
+ <label>Hoặc chọn tệp (.txt, .md, .pdf, .docx)<input id="af" type="file" accept=".txt,.md,.pdf,.docx" onchange="readSrc()"></label><div id="as" class="mu"></div></div>
+ <div class="card"><h3>2. Cấu hình đề</h3><div class="g2">
+ <label>Trình độ / đối tượng<select id="al">${['Tự động bám sát độ khó của tài liệu','Starters / Movers','Flyers','Lớp 6–9','KET / PET','IELTS'].map(x=>`<option>${x}</option>`).join('')}</select></label>
+ <label>Số câu hỏi<select id="an">${[5,10,15,20].map(x=>`<option ${x===10?'selected':''}>${x}</option>`).join('')}</select></label>
+ <label>Trọng tâm kiểm tra<select id="ag">${['Tổng hợp','Đọc hiểu (Reading Comprehension)','Từ vựng theo ngữ cảnh (Vocabulary in Context)','Ngữ pháp (Grammar)'].map(x=>`<option>${x}</option>`).join('')}</select></label></div>
+ <label>Yêu cầu bổ sung (tùy chọn)<input id="ax" placeholder="VD: Chỉ dùng từ vựng có trong đoạn văn; giải thích bằng tiếng Việt dễ hiểu"></label>
+ <button id="ab" onclick="genAI()">Tạo đề ngay</button><div id="ar" class="mu" style="margin-top:8px"></div></div>`
+}
+async function readSrc(){
+ const f=$('#af').files[0];if(!f)return;const st=m=>$('#as').textContent=m;
+ try{
+  if(!/\.(txt|md|pdf|docx)$/i.test(f.name))throw new Error('chỉ nhận .txt, .md, .pdf, .docx');
+  st('Đang đọc tệp...');
+  $('#at').value=/\.(txt|md)$/i.test(f.name)?await f.text():await extract(f,st);
+  st(`✔ Đã đọc "${f.name}" (${$('#at').value.length} ký tự). Bạn có thể chỉnh sửa nội dung trước khi tạo đề.`)
+ }catch(e){st('');say(`${f.name}: ${e.message}`,1)}
+}
+async function callAI(c,sys,usr){
+ let res;
+ try{
+  if(c.prov==='proxy')return(await api('ai',{payload:{sys,usr}})).text;
+  if(c.prov==='openai')res=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+c.key},body:JSON.stringify({model:c.model||'gpt-4o-mini',temperature:.4,response_format:{type:'json_object'},messages:[{role:'system',content:sys},{role:'user',content:usr}]})});
+  else res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${c.model||'gemini-2.5-flash'}:generateContent?key=${encodeURIComponent(c.key)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:sys+'\n\n'+usr}]}],generationConfig:{responseMimeType:'application/json',temperature:.4}})});
+ }catch(e){throw new Error(c.prov==='proxy'?e.message:'Không kết nối được tới nhà cung cấp AI. Hãy kiểm tra mạng.')}
+ const j=await res.json().catch(()=>({}));
+ if(!res.ok){const m=(j.error&&j.error.message)||'';
+  throw new Error(res.status===401||res.status===403||/api key|api_key/i.test(m)?'API Key sai hoặc không có quyền sử dụng. Hãy kiểm tra lại trong Cài đặt.':res.status===429?'API Key đã vượt hạn mức, hãy thử lại sau ít phút.':/token|too long|length/i.test(m)?'Tài liệu quá dài so với giới hạn của mô hình, hãy cắt bớt.':`Lỗi từ AI (${res.status}): ${m.slice(0,160)}`)}
+ return c.prov==='openai'?j.choices?.[0]?.message?.content||'':j.candidates?.[0]?.content?.parts?.[0]?.text||''
+}
+function parseQs(t){
+ let j;t=String(t).replace(/^```(?:json)?|```$/gm,'').trim();
+ try{j=JSON.parse(t)}catch(e){const m=t.match(/[\[{][\s\S]*[\]}]/);try{j=JSON.parse(m&&m[0])}catch(x){return[]}}
+ return(Array.isArray(j)?j:(j&&j.questions)||[]).map(x=>({q:String(x.q||'').trim(),o:(x.o||[]).map(s=>String(s).replace(/^\s*[A-Da-d][.)]\s+/,'').trim()),a:Number.isInteger(+x.a)?+x.a:-1,e:String(x.e||'').trim(),p:1})).filter(x=>x.q&&x.o.length===4&&x.o.every(Boolean)&&x.a>=0&&x.a<4)
+}
+async function genAI(){
+ const c=AI(),src=$('#at').value.trim(),n=+$('#an').value,b=$('#ab'),r=m=>$('#ar').textContent=m;
+ if(src.length<200)return say('Tài liệu quá ngắn: cần ít nhất khoảng 200 ký tự để AI soạn câu hỏi',1);
+ if(src.length>30000)return say('Tài liệu quá dài (tối đa 30.000 ký tự). Hãy cắt bớt hoặc chia thành nhiều lần',1);
+ if(c.prov!=='proxy'&&!c.key)return say('Chưa có API Key. Vào Cài đặt ▸ Trợ lý AI để nhập',1);
+ if(c.prov==='proxy'&&!url())return say('Chế độ Máy chủ cần kết nối Google Sheets (Web App URL)',1);
+ const sys='Bạn là giáo viên tiếng Anh giàu kinh nghiệm, chuyên soạn đề trắc nghiệm. CHỈ trả về một đối tượng JSON hợp lệ có dạng {"questions":[{"q":"câu hỏi","o":["đáp án 1","đáp án 2","đáp án 3","đáp án 4"],"a":0,"e":"giải thích bằng tiếng Việt"}]}, không thêm chữ nào khác, không dùng markdown. Quy tắc: mỗi câu có đúng 4 đáp án (không ghi tiền tố A./B./C./D.); a là chỉ số 0-3 của đáp án đúng duy nhất; phân bố vị trí đáp án đúng đều nhau; nội dung bám sát tài liệu, không bịa thông tin ngoài tài liệu; đáp án nhiễu hợp lý; e giải thích ngắn gọn, dễ hiểu vì sao đáp án đó đúng và nêu căn cứ trong tài liệu.';
+ const usr=`Trình độ/đối tượng: ${$('#al').value}\nSố câu: ${n}\nTrọng tâm: ${$('#ag').value}\nYêu cầu bổ sung: ${$('#ax').value.trim()||'(không có)'}\n\nTÀI LIỆU:\n"""\n${src}\n"""`;
+ b.disabled=true;r('⏳ AI đang đọc tài liệu và soạn câu hỏi, thường mất 10–40 giây. Vui lòng không đóng trang.');
+ try{
+  const qs=parseQs(await callAI(c,sys,usr));
+  if(!qs.length)throw new Error('AI trả về dữ liệu không đúng định dạng. Hãy bấm tạo lại.');
+  D.qs.push(...qs);if(!D.name)D.name='Đề AI – '+new Date().toLocaleDateString('vi-VN');
+  TAB='build';vTeacher();say(`✔ AI đã tạo ${qs.length} câu. Hãy rà soát kỹ rồi mới lưu đề.`)
+ }catch(e){r('');b.disabled=false;say(e.message,1)}
+}
+
 /* --- Cài đặt --- */
 function tSet(){
  $('#tb').innerHTML=`<div class="card"><h3>Kết nối Google Sheets</h3><label>Web App URL (Apps Script)<input id="su" value="${esc(url())}" placeholder="https://script.google.com/macros/s/.../exec"></label><div class="row"><button onclick="setUrl($('#su').value.trim())">Lưu URL</button><button class="b2" onclick="setUrl('')">Dùng Demo/Offline</button></div><p class="mu">Chế độ hiện tại: <b>${url()?'Online (Google Sheets)':'Demo/Offline — dữ liệu lưu trên trình duyệt này'}</b>. Khi có URL, mật khẩu giáo viên là biến PASS trong Code.gs. Đổi chế độ xong cần đăng nhập lại. Để học viên ở máy khác cũng kết nối được, hãy điền URL vào biến WEB_APP_URL đầu file.</p></div>
+ <div class="card"><h3>Trợ lý AI tạo đề</h3><div class="g2"><label>Nhà cung cấp<select id="ap">${[['gemini','Google Gemini'],['openai','OpenAI'],['proxy','Máy chủ Apps Script (key đặt trong Script Properties)']].map(([v,t])=>`<option value="${v}" ${AI().prov===v?'selected':''}>${t}</option>`).join('')}</select></label><label>Mô hình (để trống = mặc định)<input id="am" value="${esc(AI().model)}" placeholder="gemini-2.5-flash hoặc gpt-4o-mini"></label></div><label>API Key cá nhân<input id="ak" type="password" autocomplete="off" value="${esc(AI().key)}"></label><button onclick="saveAI()">Lưu cấu hình AI</button><p class="mu">Key chỉ lưu trong trình duyệt của giáo viên trên máy này, không nằm trong mã nguồn. Đừng dùng máy chung. Chọn "Máy chủ Apps Script" nếu muốn key không xuất hiện trên trình duyệt (cần kết nối Google Sheets).</p></div>
  <div class="card"><h3>Dữ liệu Demo/Offline</h3><button class="bd" onclick="wipe()">Xóa đề và kết quả offline, nạp lại đề mẫu</button></div>`
 }
 async function setUrl(u){
