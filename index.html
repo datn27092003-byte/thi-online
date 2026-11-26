@@ -37,6 +37,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .bar{height:8px;border-radius:9px;background:var(--bd);overflow:hidden}.bar i{display:block;height:100%;background:var(--no)}
 #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);max-width:90%;padding:10px 16px;border-radius:8px;background:#111827;color:#fff;opacity:0;pointer-events:none;transition:.2s;z-index:20}#toast.show{opacity:1}#toast.bad{background:var(--no)}
 #md{display:none;position:fixed;inset:0;z-index:15;overflow:auto;padding:16px;background:#0009}#md>div{max-width:760px;margin:0 auto}
+.w{background:var(--bg);color:var(--t);border:1px solid var(--bd);padding:8px 12px;margin:3px}.w.on{background:var(--p);color:#fff;border-color:var(--p)}
+.ln{min-height:54px;padding:8px;margin:8px 0;border:2px dashed var(--bd);border-radius:8px;display:flex;flex-wrap:wrap;align-items:center}
 @media(max-width:760px){.exam{grid-template-columns:1fr}.exam aside{position:static}.big{font-size:38px}}
 </style>
 </head>
@@ -73,6 +75,7 @@ function say(m,bad){const t=$('#toast');t.textContent=m;t.className='show'+(bad?
 async function api(a,d={}){
  const u=url();
  if(!u){
+  if(a==='media')return{ok:true,id:'offline'};
   if(a==='lib')return{ok:true,data:LS('lib')||[]};
   if(a==='libUpload'){const l=LS('lib')||[];l.push({...d.meta,id:'L'+Date.now().toString(36),at:new Date().toLocaleString('vi-VN')});LS('lib',l);return{ok:true}}
   if(a==='libDelete'){LS('lib',(LS('lib')||[]).filter(x=>x.id!==d.id));return{ok:true}}
@@ -84,7 +87,7 @@ async function api(a,d={}){
   if(a==='submit'&&!rs.some(r=>r.sid===d.result.sid)){rs.push(d.result);LS('results',rs)}
   return{ok:true,data:a==='exams'?ex:rs}
  }
- const r=await(/^(exams|results|lib|libFile)$/.test(a)?fetch(u+'?action='+a+'&pw='+encodeURIComponent(PW)+'&id='+encodeURIComponent(d.id||'')):fetch(u,{method:'POST',body:JSON.stringify({...d,action:a,pw:PW})}));
+ const r=await(/^(exams|results|lib|libFile|mediaFile)$/.test(a)?fetch(u+'?action='+a+'&pw='+encodeURIComponent(PW)+'&id='+encodeURIComponent(d.id||'')):fetch(u,{method:'POST',body:JSON.stringify({...d,action:a,pw:PW})}));
  const j=await r.json();if(!j.ok)throw new Error(j.error||'Lỗi máy chủ');return j
 }
 async function loadExams(){EX=(await api('exams')).data.map(e=>({...e,id:String(e.id),name:String(e.name),cls:String(e.cls??''),min:+e.min||30}))}
@@ -114,20 +117,20 @@ function begin(){
  if(!n||!c)return say('Vui lòng nhập họ tên và lớp',1);
  if(!e)return say('Không tìm thấy bài kiểm tra hoặc mã đề',1);
  if(!confirm(`Bắt đầu "${e.name}" — ${e.qs.length} câu, ${e.min} phút?\nĐồng hồ sẽ chạy ngay.`))return;
- A={sid:'S'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),exam:e,name:n,cls:c,ans:e.qs.map(()=>-1),flag:e.qs.map(()=>0),cur:0,end:Date.now()+e.min*60000};
+ A={sid:'S'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),exam:e,name:n,cls:c,ans:e.qs.map(()=>-1),sh:e.qs.map(q=>q.t==='order'?shuf(q.k.trim().split(/\s+/)):null),flag:e.qs.map(()=>0),cur:0,end:Date.now()+e.min*60000};
  save();view('exam')
 }
 const save=()=>LS('draft',A);
 function vExam(){
- $('#app').innerHTML=`<div class="card sticky row"><b>${esc(A.exam.name)}</b><span class="sp"></span><span class="mu" id="pg"></span><span id="tm">--:--</span><button class="bd" onclick="finish()">Nộp bài</button></div>
+ $('#app').innerHTML=`<div class="card sticky row"><b>${esc(A.exam.name)}</b>${A.exam.std?`<span class="pill on">${esc(A.exam.std)}</span>`:''}<span class="sp"></span><span class="mu" id="pg"></span><span id="tm">--:--</span><button class="bd" onclick="finish()">Nộp bài</button></div>
  <div class="exam"><div id="qa"></div><aside class="card"><b>Danh sách câu hỏi</b><div class="nav" id="nav" style="margin:10px 0"></div><div class="mu">Xanh: đã làm · Viền cam: xem lại · Trắng: chưa làm</div></aside></div>`;
  renderQ();clearInterval(T);T=setInterval(tick,1000);tick()
 }
 function renderQ(){
  const e=A.exam,i=A.cur,q=e.qs[i];
- $('#qa').innerHTML=`<div class="card"><div class="mu">Câu ${i+1}/${e.qs.length} · ${q.p} điểm</div><h3 style="white-space:pre-wrap">${esc(q.q)}</h3>${q.o.map((o,k)=>`<label class="opt${A.ans[i]===k?' on':''}"><input type="radio" name="o" ${A.ans[i]===k?'checked':''} onchange="pick(${k})"><span><b>${L[k]}.</b> ${esc(o)}</span></label>`).join('')}<div class="row" style="margin-top:12px"><button class="b2" onclick="go(${i-1})" ${i?'':'disabled'}>← Trước</button><button class="b2" onclick="flag()">${A.flag[i]?'★ Bỏ đánh dấu':'☆ Đánh dấu xem lại'}</button><span class="sp"></span><button onclick="go(${i+1})" ${i<e.qs.length-1?'':'disabled'}>Sau →</button></div></div>`;
- $('#nav').innerHTML=e.qs.map((_,j)=>`<button class="${j===i?'cur':A.ans[j]>=0?'done':''} ${A.flag[j]?'fl':''}" onclick="go(${j})">${j+1}</button>`).join('');
- $('#pg').textContent=`${A.ans.filter(x=>x>=0).length}/${e.qs.length} câu`
+ $('#qa').innerHTML=`<div class="card"><div class="mu">Câu ${i+1}/${e.qs.length} · ${q.p} điểm</div><h3 style="white-space:pre-wrap">${esc(q.q)}</h3>${body(q,i)}<div class="row" style="margin-top:12px"><button class="b2" onclick="go(${i-1})" ${i?'':'disabled'}>← Trước</button><button class="b2" onclick="flag()">${A.flag[i]?'★ Bỏ đánh dấu':'☆ Đánh dấu xem lại'}</button><span class="sp"></span><button onclick="go(${i+1})" ${i<e.qs.length-1?'':'disabled'}>Sau →</button></div></div>`;
+ navUp();
+ 
 }
 const go=i=>{A.cur=i;save();renderQ()};
 const pick=k=>{A.ans[A.cur]=k;save();renderQ()};
@@ -140,21 +143,23 @@ function tick(){
 }
 function finish(auto){
  if(!A)return;
- if(!auto){const n=A.ans.filter(x=>x<0).length;if(!confirm(n?`Bạn còn ${n} câu chưa làm. Vẫn nộp bài?`:'Xác nhận nộp bài?'))return}
+ if(!auto){const n=A.exam.qs.filter((q,j)=>!did(q,A.ans[j])).length;if(!confirm(n?`Bạn còn ${n} câu chưa làm. Vẫn nộp bài?`:'Xác nhận nộp bài?'))return}
  clearInterval(T);
  const e=A.exam,wrong=[];let got=0,tot=0,right=0;
- e.qs.forEach((q,i)=>{tot+=q.p;if(A.ans[i]===q.a){got+=q.p;right++}else wrong.push(i+1)});
- const r={sid:A.sid,time:new Date().toISOString(),name:A.name,cls:A.cls,id:e.id,exam:e.name,score:Math.round(got/(tot||1)*1000)/100,right,total:e.qs.length,wrong,ans:A.ans};
- LAST={r,exam:e,sent:false};LS('last',LAST);localStorage.removeItem('draft');A=null;
+ const fin=e.qs.map((q,i)=>{const t=q.t||'mc',a=A.ans[i];return t==='order'?(Array.isArray(a)?a.map(j=>A.sh[i][j]).join(' '):''):t==='fill'?(typeof a==='string'?a.trim():''):isMan(q)?(a==='rec'?'rec':''):a}),auto=e.qs.filter(q=>!isMan(q)).length;
+ e.qs.forEach((q,i)=>{if(isMan(q))return;tot+=q.p;if(isOk(q,fin[i])){got+=q.p;right++}else wrong.push(i+1)});
+ const r={sid:A.sid,time:new Date().toISOString(),name:A.name,cls:A.cls,id:e.id,exam:e.name,score:Math.round(got/(tot||1)*1000)/100,right,total:auto,wrong,ans:fin};
+ LAST={r,exam:e,sent:false,media:{...MED}};Object.keys(MED).forEach(k=>delete MED[k]);LS('last',LAST);localStorage.removeItem('draft');A=null;
  view('result');send()
 }
 const setSt=(m,c)=>{const s=$('#sv');if(s){s.className='st '+c;s.innerHTML=m}};
 async function send(){
  setSt('Đang lưu điểm lên Google Sheets...','w');
- try{await api('submit',{result:LAST.r});LAST.sent=true;LS('last',LAST);setSt('✔ Đã lưu điểm thành công','ok')}
+ try{for(const[i,b]of Object.entries(LAST.media||{})){if(b instanceof Blob){setSt(`Đang tải bản ghi câu ${+i+1} lên...`,'w');LAST.r.ans[i]='M:'+(await api('media',{mime:b.type,data:await b64(b)})).id;delete LAST.media[i]}}await api('submit',{result:LAST.r});LAST.sent=true;LS('last',LAST);setSt('✔ Đã lưu điểm thành công','ok')}
  catch(e){setSt('✖ Chưa lưu được điểm (mạng chập chờn). <button onclick="send()">Gửi lại</button>','no')}
 }
 const review=(q,i,a)=>{
+ if((q.t||'mc')!=='mc')return reviewX(q,i,a);
  const s=a===undefined?'':a===q.a?' · <b style="color:var(--ok)">Đúng</b>':a<0?' · <b style="color:var(--wa)">Chưa làm</b>':' · <b style="color:var(--no)">Sai</b>';
  return`<div class="card"><div class="mu">Câu ${i+1}${s}</div><h3 style="white-space:pre-wrap">${esc(q.q)}</h3>${q.o.map((o,k)=>`<div class="opt ${k===q.a?'ok':k===a?'no':''}"><span><b>${L[k]}.</b> ${esc(o)} ${k===q.a?'✔':k===a?'✖ (đã chọn)':''}</span></div>`).join('')}${q.e?`<div class="ex">Giải thích: ${esc(q.e)}</div>`:''}</div>`
 };
@@ -175,16 +180,19 @@ async function login(){
  catch(e){PW='';say('Sai mật khẩu hoặc không kết nối được máy chủ',1)}
 }
 const modal=h=>{$('#md').innerHTML=`<div>${h}</div>`;$('#md').style.display='block'};
-const sync=()=>{D.name=$('#dn').value.trim();D.cls=$('#dc').value.trim();D.min=+$('#dm').value||30;D.id=$('#di').value.trim().toUpperCase()};
+const sync=()=>{D.name=$('#dn').value.trim();D.cls=$('#dc').value.trim();D.min=+$('#dm').value||30;D.id=$('#di').value.trim().toUpperCase();D.std=($('#ds')||{}).value||''};
 
 function tBuild(){
  $('#tb').innerHTML=`<div class="card"><h3>1. Thông tin bài kiểm tra</h3><div class="g2">
  <label>Tên bài kiểm tra<input id="dn" value="${esc(D.name)}"></label><label>Lớp/Khối<input id="dc" value="${esc(D.cls)}"></label>
- <label>Thời gian làm bài (phút)<input id="dm" type="number" min="1" value="${D.min}"></label><label>Mã đề<input id="di" value="${esc(D.id)}" placeholder="Để trống để tự tạo"></label></div></div>
+ <label>Thời gian làm bài (phút)<input id="dm" type="number" min="1" value="${D.min}"></label><label>Mã đề<input id="di" value="${esc(D.id)}" placeholder="Để trống để tự tạo"></label><label>Chuẩn thi / cấp độ<select id="ds">${['','Starters','Movers','Flyers','KET','PET','IELTS','Khác'].map(x=>`<option ${D.std===x?'selected':''}>${x}</option>`).join('')}</select></label></div></div>
  <div class="card"><h3>2. ${EI<0?'Thêm từng câu hỏi':'Sửa câu '+(EI+1)}</h3>
- <textarea id="qq" placeholder="Nội dung câu hỏi"></textarea>
- <div class="g2">${[0,1,2,3].map(k=>`<label>Đáp án ${L[k]}<input id="o${k}"></label>`).join('')}</div>
+ <div class="g2"><label>Dạng câu hỏi<select id="qt" onchange="qtype()">${Object.entries(TY).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select></label><label>Hướng dẫn làm bài (tùy chọn)<input id="qi"></label></div>
+ <label>Link ảnh minh họa (tùy chọn)<input id="qm" placeholder="https://..."></label>
+ <textarea id="qq" placeholder="Nội dung câu hỏi / đề bài"></textarea>
+ <div id="mcb"><div class="g2">${[0,1,2,3].map(k=>`<label>Đáp án ${L[k]}<input id="o${k}"></label>`).join('')}</div>
  <div class="row" style="margin-bottom:8px"><b>Đáp án đúng:</b>${[0,1,2,3].map(k=>`<label style="display:inline;font-weight:400"><input type="radio" name="ca" value="${k}" style="width:auto;margin:0 4px" ${k?'':'checked'}>${L[k]}</label>`).join('')}</div>
+ </div><div id="kb" style="display:none"><label><span id="kl"></span><input id="qk"></label><label id="ks">Thời gian ghi tối đa (giây)<input id="qs" type="number" min="5" max="120" value="30" style="max-width:120px"></label></div>
  <label>Giải thích (hiện sau khi nộp bài)<input id="qe"></label><label>Điểm của câu<input id="qp" type="number" step="0.25" min="0.25" value="1" style="max-width:120px"></label>
  <div class="row"><button onclick="addQ()">${EI<0?'Thêm câu':'Cập nhật câu'}</button>${EI<0?'':'<button class="b2" onclick="sync();EI=-1;tBuild()">Hủy sửa</button>'}</div></div>
  <div class="card"><h3>3. Nhập hàng loạt</h3><p class="mu">Mỗi câu một đoạn, cách nhau một dòng trống. Đặt dấu * trước đáp án đúng. Dòng "Giải thích:" và "Điểm:" là tùy chọn.</p>
@@ -195,21 +203,23 @@ C. Đà Nẵng
 D. Cần Thơ
 Giải thích: Hà Nội là thủ đô.
 Điểm: 1"></textarea><button onclick="bulk()">Tách thành câu hỏi</button></div>
- <div class="card"><h3>4. Danh sách câu hỏi (${D.qs.length})</h3>${D.qs.map((q,i)=>`<div class="row" style="border-bottom:1px solid var(--bd);padding:6px 0"><span style="flex:1"><b>${i+1}.</b> ${esc(q.q.slice(0,90))} <span class="mu">· đáp án ${L[q.a]} · ${q.p} điểm</span></span><button class="b2" onclick="editQ(${i})">Sửa</button><button class="bd" onclick="sync();D.qs.splice(${i},1);EI=-1;tBuild()">Xóa</button></div>`).join('')||'<p class="mu">Chưa có câu hỏi nào.</p>'}
+ <div class="card"><h3>4. Danh sách câu hỏi (${D.qs.length})</h3>${D.qs.map((q,i)=>`<div class="row" style="border-bottom:1px solid var(--bd);padding:6px 0"><span style="flex:1"><b>${i+1}.</b> ${esc(q.q.slice(0,90))} <span class="mu">· ${TY[q.t||'mc']}${!q.t||q.t==='mc'?' · đáp án '+L[q.a]:''} · ${q.p} điểm</span></span><button class="b2" onclick="editQ(${i})">Sửa</button><button class="bd" onclick="sync();D.qs.splice(${i},1);EI=-1;tBuild()">Xóa</button></div>`).join('')||'<p class="mu">Chưa có câu hỏi nào.</p>'}
  <div class="row" style="margin-top:12px"><button class="b2" onclick="preview()">Xem trước đề</button><button onclick="saveExam()">Lưu đề lên hệ thống</button><button class="b2" onclick="D=newD();EI=-1;tBuild()">Tạo đề mới</button></div></div>
  <div class="card"><h3>Đề đã lưu (${EX.length})</h3><div class="tw"><table><tr><th>Mã đề</th><th>Tên bài</th><th>Lớp</th><th>Số câu</th><th>Phút</th><th></th></tr>${EX.map((e,i)=>`<tr><td>${esc(e.id)}</td><td>${esc(e.name)}</td><td>${esc(e.cls)}</td><td>${e.qs.length}</td><td>${e.min}</td><td><button class="b2" onclick="D=JSON.parse(JSON.stringify(EX[${i}]));EI=-1;tBuild();scrollTo(0,0)">Sửa</button> <button class="bd" onclick="delExam(${i})">Xóa</button></td></tr>`).join('')}</table></div></div>`
 }
 function addQ(){
  sync();
- const q={q:$('#qq').value.trim(),o:[0,1,2,3].map(k=>$('#o'+k).value.trim()),a:+document.querySelector('input[name=ca]:checked').value,e:$('#qe').value.trim(),p:+$('#qp').value||1};
- if(!q.q||q.o.some(x=>!x))return say('Cần nhập nội dung câu hỏi và đủ 4 đáp án',1);
+ const t=$('#qt').value,q={t,q:$('#qq').value.trim(),ins:$('#qi').value.trim(),img:$('#qm').value.trim(),e:$('#qe').value.trim(),p:+$('#qp').value||1};
+ if(t==='mc'){q.o=[0,1,2,3].map(k=>$('#o'+k).value.trim());q.a=+document.querySelector('input[name=ca]:checked').value}
+ else if(isMan(q))q.sec=+$('#qs').value||30;else q.k=$('#qk').value.trim();
+ if(!q.q||(t==='mc'?q.o.some(x=>!x):(t==='order'||t==='fill')&&!q.k))return say('Cần nhập nội dung câu hỏi và đáp án (trắc nghiệm cần đủ 4 đáp án)',1);
  if(EI<0)D.qs.push(q);else D.qs[EI]=q;
  EI=-1;tBuild();say('Đã lưu câu hỏi')
 }
 function editQ(i){
  sync();EI=i;tBuild();const q=D.qs[i];
- $('#qq').value=q.q;q.o.forEach((o,k)=>$('#o'+k).value=o);
- document.querySelector(`input[name=ca][value="${q.a}"]`).checked=true;$('#qe').value=q.e||'';$('#qp').value=q.p;$('#qq').scrollIntoView({behavior:'smooth'})
+ const t=q.t||'mc';$('#qt').value=t;qtype();$('#qi').value=q.ins||'';$('#qm').value=q.img||'';$('#qq').value=q.q;$('#qk').value=q.k||'';$('#qs').value=q.sec||30;if(t==='mc')q.o.forEach((o,k)=>$('#o'+k).value=o);
+ if(t==='mc')document.querySelector(`input[name=ca][value="${q.a}"]`).checked=true;$('#qe').value=q.e||'';$('#qp').value=q.p;$('#qq').scrollIntoView({behavior:'smooth'})
 }
 function bulk(){
  sync();let n=0,bad=0;
@@ -262,12 +272,12 @@ function filt(){
   const cnt=ex.qs.map((_,i)=>FR.filter(r=>r.wrong.includes(i+1)).length);
   h+=`<div class="card"><h3>Tỷ lệ làm sai từng câu (câu sai nhiều nhất ở trên)</h3>${ex.qs.map((q,i)=>[i,cnt[i]]).sort((a,b)=>b[1]-a[1]).map(([i,k])=>`<div style="margin:10px 0"><div class="row"><span style="flex:1">Câu ${i+1}: ${esc(ex.qs[i].q.slice(0,70))}</span><b>${Math.round(k/n*100)}%</b><span class="mu">(${k}/${n})</span></div><div class="bar"><i style="width:${k/n*100}%"></i></div></div>`).join('')}</div>`
  }else h+='<p class="mu">Chọn một bài kiểm tra ở bộ lọc để xem tỷ lệ làm sai từng câu.</p>';
- h+=`<div class="card tw"><table><tr><th>Họ tên</th><th>Lớp</th><th>Mã đề</th><th>Điểm</th><th>Đúng/Tổng</th><th>Nộp lúc</th><th>Câu sai (bấm để xem chi tiết)</th></tr>${FR.map((r,i)=>`<tr><td>${esc(r.name)}</td><td>${esc(r.cls)}</td><td>${esc(r.id)}</td><td><b>${r.score}</b></td><td>${r.right}/${r.total}</td><td>${esc(fmt(r.time))}</td><td>${r.wrong.length?`<a href="#" onclick="detail(${i});return false">${r.wrong.join(', ')}</a>`:'—'}</td></tr>`).join('')}</table></div>`;
+ h+=`<div class="card tw"><table><tr><th>Họ tên</th><th>Lớp</th><th>Mã đề</th><th>Điểm</th><th>Đúng/Tổng</th><th>Nộp lúc</th><th>Câu sai (bấm để xem chi tiết)</th></tr>${FR.map((r,i)=>`<tr><td>${esc(r.name)}</td><td>${esc(r.cls)}</td><td>${esc(r.id)}</td><td><b>${r.score}</b></td><td>${r.right}/${r.total}</td><td>${esc(fmt(r.time))}</td><td><a href="#" onclick="detail(${i});return false">${r.wrong.join(', ')||'Xem'}</a></td></tr>`).join('')}</table></div>`;
  $('#st').innerHTML=h
 }
 function detail(i){
  const r=FR[i],e=EX.find(x=>x.id===r.id);
- modal(`<div class="card row"><h3 style="margin:0;flex:1">${esc(r.name)} · ${esc(r.cls)} — ${r.score}/10</h3><button onclick="$('#md').style.display='none'">Đóng</button></div>${e?r.wrong.filter(n=>e.qs[n-1]).map(n=>review(e.qs[n-1],n-1,(r.ans||[])[n-1]??-1)).join(''):`<div class="card">Câu sai: ${r.wrong.join(', ')} (không tìm thấy đề ${esc(r.id)} để hiển thị chi tiết)</div>`}`)
+ modal(`<div class="card row"><h3 style="margin:0;flex:1">${esc(r.name)} · ${esc(r.cls)} — ${r.score}/10</h3><button onclick="$('#md').style.display='none'">Đóng</button></div>${mediaList(r,e)}${e?r.wrong.filter(n=>e.qs[n-1]).map(n=>review(e.qs[n-1],n-1,(r.ans||[])[n-1]??-1)).join(''):`<div class="card">Câu sai: ${r.wrong.join(', ')} (không tìm thấy đề ${esc(r.id)} để hiển thị chi tiết)</div>`}`)
 }
 function csv(){
  const c=v=>`"${String(v??'').replace(/"/g,'""')}"`;
@@ -411,6 +421,68 @@ async function genAI(){
  }catch(e){r('');b.disabled=false;say(e.message,1)}
 }
 
+/* --- Dạng bài mới: chạm từ ghép câu, điền từ, ghi âm, video ngắn --- */
+const TY={mc:'Trắc nghiệm',order:'Sắp xếp từ thành câu',fill:'Điền từ',rec:'Ghi âm',vid:'Video ngắn'};
+const DI={mc:'Read the question and choose the correct answer.',order:'Put the words in the correct order.',fill:'Read the sentence and write the missing word.',rec:'Record yourself answering.',vid:'Record a short video.'};
+const nz=s=>String(s??'').toLowerCase().replace(/[.,!?;:"“”]/g,'').replace(/\s+/g,' ').trim();
+const isMan=q=>q.t==='rec'||q.t==='vid';
+const isOk=(q,a)=>{const t=q.t||'mc';return t==='mc'?a===q.a:t==='order'?nz(a)===nz(q.k):t==='fill'?q.k.split('|').some(x=>nz(x)===nz(a)):false};
+const did=(q,a)=>{const t=q.t||'mc';return t==='mc'?a>=0:t==='order'?Array.isArray(a)&&a.length>0:t==='fill'?typeof a==='string'&&a.trim()!=='':a==='rec'};
+const shuf=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
+const MED={},RC={};
+function navUp(){
+ const e=A.exam,i=A.cur;
+ $('#nav').innerHTML=e.qs.map((q,j)=>`<button class="${j===i?'cur':did(q,A.ans[j])?'done':''} ${A.flag[j]?'fl':''}" onclick="go(${j})">${j+1}</button>`).join('');
+ $('#pg').textContent=`${e.qs.filter((q,j)=>did(q,A.ans[j])).length}/${e.qs.length} câu`
+}
+function body(q,i){
+ const t=q.t||'mc',a=A.ans[i],v=t==='vid',
+  pre=`${q.ins?`<div class="mu"><i>${esc(q.ins)}</i></div>`:''}${q.img?`<img src="${esc(q.img)}" alt="" style="max-width:100%;border-radius:8px;margin:8px 0">`:''}`;
+ if(t==='mc')return pre+q.o.map((o,k)=>`<label class="opt${a===k?' on':''}"><input type="radio" name="o" ${a===k?'checked':''} onchange="pick(${k})"><span><b>${L[k]}.</b> ${esc(o)}</span></label>`).join('');
+ if(t==='order'){
+  const bk=A.sh[i],u=Array.isArray(a)?a:[];
+  return pre+`<div class="ln">${u.map((j,k)=>`<button class="w on" onclick="ord(${k},1)">${esc(bk[j])}</button>`).join('')||'<span class="mu">Chạm vào các từ bên dưới để ghép thành câu</span>'}</div><div class="row">${bk.map((w,j)=>`<button class="w" ${u.includes(j)?'disabled':''} onclick="ord(${j},0)">${esc(w)}</button>`).join('')}</div><div style="margin-top:8px"><button class="b2" onclick="A.ans[${i}]=[];save();renderQ()">Làm lại</button></div>`
+ }
+ if(t==='fill')return pre+`<input id="fi" value="${esc(typeof a==='string'?a:'')}" placeholder="Nhập đáp án của bạn" autocomplete="off" oninput="A.ans[${i}]=this.value;save();navUp()">`;
+ const on=RC.m&&RC.i===i,mx=q.sec||(v?30:60);
+ return pre+(on?`<div class="st no"><b id="rt">● Đang ghi...</b> <button class="bd" onclick="RC.m.stop()">■ Dừng</button></div>`:`<div class="row"><button onclick="rec(${i})">${a==='rec'?'● Ghi lại':v?'● Quay video':'● Ghi âm'}</button><span class="mu">Tối đa ${mx} giây · cần cho phép ${v?'camera và micro':'micro'}</span></div>`+(a==='rec'&&MED[i]?`<${v?'video playsinline':'audio'} controls src="${URL.createObjectURL(MED[i])}" style="width:100%;margin-top:8px"></${v?'video':'audio'}>`:''))
+}
+const ord=(x,rm)=>{const i=A.cur,u=Array.isArray(A.ans[i])?A.ans[i]:A.ans[i]=[];rm?u.splice(x,1):u.push(x);save();renderQ()};
+async function rec(i){
+ const q=A.exam.qs[i],v=q.t==='vid',mx=q.sec||(v?30:60);
+ try{
+  const s=await navigator.mediaDevices.getUserMedia(v?{audio:true,video:{width:640,height:480}}:{audio:true});
+  const m=new MediaRecorder(s,v?{videoBitsPerSecond:600000}:{}),ch=[];let n=mx;
+  m.ondataavailable=e=>{if(e.data.size)ch.push(e.data)};
+  m.onstop=()=>{s.getTracks().forEach(x=>x.stop());clearInterval(RC.t);RC.m=null;if(!A)return;MED[i]=new Blob(ch,{type:m.mimeType||(v?'video/webm':'audio/webm')});A.ans[i]='rec';save();if(A.cur===i)renderQ();else navUp()};
+  RC.m=m;RC.i=i;m.start();renderQ();
+  RC.t=setInterval(()=>{n--;const el=$('#rt');if(el)el.textContent=`● Đang ghi... còn ${n} giây`;if(n<=0)m.stop()},1000)
+ }catch(e){say('Không mở được micro/camera. Hãy cho phép quyền truy cập và mở trang bằng https.',1)}
+}
+function qtype(){
+ const t=$('#qt').value,x=t==='rec'||t==='vid';
+ $('#mcb').style.display=t==='mc'?'':'none';$('#kb').style.display=t==='mc'?'none':'';
+ $('#qk').parentNode.style.display=x?'none':'';$('#ks').style.display=x?'':'none';
+ $('#kl').textContent=t==='order'?'Câu hoàn chỉnh đúng (học viên sẽ thấy các từ bị xáo trộn)':'Đáp án đúng (nhiều đáp án chấp nhận được thì ngăn cách bằng dấu |)';
+ if(!$('#qi').value||Object.values(DI).includes($('#qi').value))$('#qi').value=DI[t]
+}
+function reviewX(q,i,a){
+ const t=q.t,m=isMan(q),pv=a===undefined,ok=!pv&&!m&&isOk(q,a),key=t==='order'?q.k:(q.k||'').split('|').join(' / ');
+ const s=pv?'':m?' · <b style="color:var(--wa)">Giáo viên chấm</b>':ok?' · <b style="color:var(--ok)">Đúng</b>':' · <b style="color:var(--no)">Sai</b>';
+ return`<div class="card"><div class="mu">Câu ${i+1} · ${TY[t]}${s}</div>${q.ins?`<div class="mu"><i>${esc(q.ins)}</i></div>`:''}<h3 style="white-space:pre-wrap">${esc(q.q)}</h3>${q.img?`<img src="${esc(q.img)}" alt="" style="max-width:100%;border-radius:8px">`:''}${m?`<div class="st w">${pv?`Học viên ghi ${t==='vid'?'video':'âm'} tối đa ${q.sec||30} giây. Giáo viên nghe/xem và chấm trong tab Kết quả.`:'Bài nói/video do giáo viên chấm, không tính vào điểm tự động.'}</div>`:`${pv?'':`<div class="opt ${ok?'ok':'no'}"><span>Bài làm: <b>${esc(a||'(bỏ trống)')}</b></span></div>`}${ok?'':`<div class="opt ok"><span>Đáp án đúng: <b>${esc(key)}</b> ✔</span></div>`}`}${q.e?`<div class="ex">Giải thích: ${esc(q.e)}</div>`:''}</div>`
+}
+function mediaList(r,e){
+ return e?e.qs.map((q,i)=>isMan(q)?`<div class="card"><div class="mu">Câu ${i+1} (${TY[q.t]}): ${esc(q.q)}</div>${String((r.ans||[])[i]).startsWith('M:')?`<button onclick="playMed('${String(r.ans[i]).slice(2)}',this)">▶ Nghe/xem bài nộp</button><div></div>`:'<span class="mu">Học viên chưa nộp bản ghi.</span>'}</div>`:'').join(''):''
+}
+async function playMed(id,b){
+ try{
+  b.disabled=true;
+  const j=await api('mediaFile',{id}),v=/^video/.test(j.mime),u=URL.createObjectURL(await(await fetch(`data:${j.mime};base64,${j.data}`)).blob()),k=v?'video':'audio';
+  b.nextElementSibling.innerHTML=`<${k} controls autoplay ${v?'playsinline':''} src="${u}" style="width:100%;margin-top:8px"></${k}>`
+ }catch(e){say(e.message,1)}
+ b.disabled=false
+}
+
 /* --- Cài đặt --- */
 function tSet(){
  $('#tb').innerHTML=`<div class="card"><h3>Kết nối Google Sheets</h3><label>Web App URL (Apps Script)<input id="su" value="${esc(url())}" placeholder="https://script.google.com/macros/s/.../exec"></label><div class="row"><button onclick="setUrl($('#su').value.trim())">Lưu URL</button><button class="b2" onclick="setUrl('')">Dùng Demo/Offline</button></div><p class="mu">Chế độ hiện tại: <b>${url()?'Online (Google Sheets)':'Demo/Offline — dữ liệu lưu trên trình duyệt này'}</b>. Khi có URL, mật khẩu giáo viên là biến PASS trong Code.gs. Đổi chế độ xong cần đăng nhập lại. Để học viên ở máy khác cũng kết nối được, hãy điền URL vào biến WEB_APP_URL đầu file.</p></div>
@@ -431,7 +503,7 @@ function wipe(){
 async function init(){
  try{await loadExams()}catch(e){say('Không tải được danh sách đề: '+e.message,1)}
  const d=LS('draft'),l=LS('last');
- if(d){A=d;view('exam')}                       // tải lại trang giữa chừng: làm tiếp bài, đồng hồ không bị reset
+ if(d){A=d;A.ans=A.ans.map((x,i)=>x==='rec'&&!MED[i]?-1:x);view('exam')}                       // tải lại trang giữa chừng: làm tiếp bài, đồng hồ không bị reset
  else if(l&&!l.sent){LAST=l;view('result');send()} // điểm chưa gửi được: tự gửi lại
  else view('home')
 }
