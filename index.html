@@ -86,8 +86,8 @@ th{background:var(--mint);color:var(--t)}.ex{background:var(--mint)}.pill.on{bac
    WEB_APP_URL: dán URL Web App (Apps Script, đuôi /exec) để MỌI học viên kết nối Google Sheets.
    (Ô nhập ở Giáo viên ▸ Cài đặt chỉ lưu trên trình duyệt của giáo viên.)
    Để trống = chế độ Demo/Offline: dữ liệu lưu ngay trên trình duyệt, có sẵn đề mẫu. */
-const WEB_APP_URL='';
-const OFFLINE_PASS='1234'; // mật khẩu giáo viên ở chế độ Demo/Offline (khi online dùng PASS trong Code.gs)
+const WEB_APP_URL='https://script.google.com/macros/s/AKfycbxgL3Ltnjp8OlB7VbQOKKs4TvqEIO1OkmjRnOqIQtV9pXaQIqZohplI406DE89IVfc6/exec';
+const OFFLINE_PASS='concavang1'; // mật khẩu giáo viên ở chế độ Demo/Offline (khi online dùng PASS trong Code.gs)
 
 const $=s=>document.querySelector(s),L='ABCD';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -239,7 +239,7 @@ D. Cần Thơ
 Giải thích: Hà Nội là thủ đô.
 Điểm: 1"></textarea><button onclick="bulk()">Tách thành câu hỏi</button></div>
  <div class="card"><h3>4. Danh sách câu hỏi (${D.qs.length})</h3>${D.qs.map((q,i)=>`<div class="card" style="padding:16px;margin-bottom:12px"><div class="qh"><b>Câu ${i+1}</b><span class="row">${lvTag(q)}<button class="b2" style="min-height:34px;padding:4px 14px" onclick="editQ(${i})">Sửa</button><button class="bd" style="min-height:34px;padding:4px 14px" onclick="sync();D.qs.splice(${i},1);EI=-1;tBuild()">Xóa</button></span></div><div>${esc(q.q.slice(0,140))}</div><div class="mu">${TY[q.t||'mc']}${!q.t||q.t==='mc'?' · đáp án '+L[q.a]:''} · ${q.p} điểm</div></div>`).join('')||'<p class="mu">Chưa có câu hỏi nào.</p>'}
- <div class="row" style="margin-top:12px"><button class="b2" onclick="preview()">Xem trước đề</button><button onclick="saveExam()">Lưu đề lên hệ thống</button><button class="b2" onclick="D=newD();EI=-1;tBuild()">Tạo đề mới</button></div></div>
+ <div class="row" style="margin-top:12px"><button class="b2" onclick="preview()">Xem trước đề</button><button class="b2" onclick="dlPng()">Tải ảnh PNG của đề</button><button onclick="saveExam()">Lưu đề lên hệ thống</button><button class="b2" onclick="D=newD();EI=-1;tBuild()">Tạo đề mới</button></div></div>
  <div class="card"><h3>Đề đã lưu (${EX.length})</h3><div class="tw"><table><tr><th>Mã đề</th><th>Tên bài</th><th>Lớp</th><th>Số câu</th><th>Phút</th><th></th></tr>${EX.map((e,i)=>`<tr><td>${esc(e.id)}</td><td>${esc(e.name)}</td><td>${esc(e.cls)}</td><td>${e.qs.length}</td><td>${e.min}</td><td><button class="b2" onclick="D=JSON.parse(JSON.stringify(EX[${i}]));EI=-1;tBuild();scrollTo(0,0)">Sửa</button> <button class="bd" onclick="delExam(${i})">Xóa</button></td></tr>`).join('')}</table></div></div>`
 }
 function addQ(){
@@ -281,7 +281,7 @@ async function saveExam(){
  sync();
  if(!D.name||!D.qs.length)return say('Cần có tên bài kiểm tra và ít nhất 1 câu hỏi',1);
  if(!D.id)D.id='DE'+Math.random().toString(36).slice(2,6).toUpperCase();
- try{await api('saveExam',{exam:D});await loadExams();say('✔ Đã lưu đề, mã đề: '+D.id);tBuild()}
+ try{let png;if(url()){say('Đang tạo ảnh PNG của đề...');png=await b64(await examPng(D))}await api('saveExam',{exam:D,png});await loadExams();say('✔ Đã lưu đề, mã đề: '+D.id);tBuild()}
  catch(e){say('Lỗi lưu đề: '+e.message,1)}
 }
 async function delExam(i){
@@ -525,6 +525,45 @@ const STP=['Thông tin','Làm bài','Nộp bài','Lưu điểm','Xem lại'];
 const steps=n=>`<div class="stp" id="stp">${STP.map((s,i)=>`<div class="s${i<n?' dn':i===n?' cu':''}"><span>${i<n?'✓':i+1}</span><small>${s}</small></div>`).join('')}</div>`;
 const stepAt=n=>{const e=$('#stp');if(e)e.outerHTML=steps(n)};
 const selEx=el=>{document.querySelectorAll('.pick').forEach(x=>x.classList.remove('on'));el.classList.add('on');$('#hs').value=el.dataset.id};
+
+/* --- Ảnh PNG của đề (lưu Drive; trong Google Sheet hiện thành link "Đề") --- */
+async function examPng(e){
+ try{await document.fonts.ready}catch(x){}
+ const W=900,P=36,F='"Montserrat",system-ui,Arial,sans-serif',c=document.createElement('canvas'),g=c.getContext('2d'),rc=[],ops=[];
+ let y=P;
+ const fn=(s,b,i)=>`${i?'italic ':''}${b?'700 ':'400 '}${s}px ${F}`,lh=s=>Math.round(s*1.5);
+ const wrap=(t,w,f)=>{g.font=f;const o=[];String(t).split('\n').forEach(p=>{let l='';p.split(/\s+/).forEach(d=>{const z=l?l+' '+d:d;if(l&&g.measureText(z).width>w){o.push(l);l=d}else l=z});o.push(l)});return o};
+ const T=(t,x,s,col,b,i,r)=>{const f=fn(s,b,i);wrap(t,W-P-x-(r||0),f).forEach(l=>{ops.push({t:l,x,y,f,col});y+=lh(s)})};
+ const box=(x,w,fill,line)=>{const r={x,y,w,h:0,fill,line};rc.push(r);return r},end=r=>{r.h=y-r.y};
+ const N=e.qs.length,tot=e.qs.reduce((s,q)=>s+(isMan(q)?0:q.p),0);
+ T(e.name||'Đề thi',P,26,'#0c2d48',1);
+ T(`Mã đề: ${e.id} · Lớp/Khối: ${e.cls||'—'} · Thời gian: ${e.min} phút${e.std?' · Chuẩn thi: '+e.std:''} · ${N} câu · Tổng điểm tự chấm: ${tot}`,P,14,'#5b7185');
+ y+=14;
+ e.qs.forEach((q,i)=>{
+  const t=q.t||'mc',cd=box(P-14,W-2*P+28,'#ffffff','#dbe6ea');y+=14;
+  ops.push({t:`Câu ${i+1} · ${TY[t]}${isMan(q)?'':' · '+q.p+' điểm'}`,x:P,y,f:fn(13,1),col:'#00818a'});
+  if(q.lv)ops.push({t:`${q.lv} – ${LVN[q.lv]}`,x:W-P,y,f:fn(13,1),col:'#00818a',a:'right'});
+  y+=24;
+  if(q.ins)T(q.ins,P,13,'#5b7185',0,1);
+  if(q.img)T('Ảnh minh họa: '+q.img,P,12,'#5b7185');
+  T(q.q,P,16,'#0c2d48',1);y+=6;
+  if(t==='mc')q.o.forEach((o,k)=>{const ok=k===q.a,b=box(P,W-2*P,ok?'#dcf5e6':'#f8f9fa',ok?'#15803d':'#dbe6ea');y+=8;T(`${L[k]}. ${o}${ok?'  (đáp án đúng)':''}`,P+12,15,ok?'#15803d':'#0c2d48',ok,0,12);y+=8;end(b);y+=6});
+  else if(isMan(q))T(`Học viên ${t==='vid'?'quay video':'ghi âm'} tối đa ${q.sec||(t==='vid'?30:60)} giây. Giáo viên nghe/xem và chấm.`,P,14,'#c2670a');
+  else T('Đáp án đúng: '+(t==='order'?q.k:q.k.split('|').join(' / ')),P,15,'#15803d',1);
+  if(q.e){y+=4;T('Giải thích: '+q.e,P,14,'#5b7185')}
+  y+=14;end(cd);y+=18
+ });
+ const H=Math.min(y+P,16000);c.width=W;c.height=H;
+ g.fillStyle='#f8f9fa';g.fillRect(0,0,W,H);
+ rc.forEach(r=>{g.fillStyle=r.fill;g.strokeStyle=r.line;g.lineWidth=1.5;g.beginPath();if(g.roundRect)g.roundRect(r.x,r.y,r.w,r.h,12);else g.rect(r.x,r.y,r.w,r.h);g.fill();g.stroke()});
+ g.textBaseline='top';ops.forEach(o=>{g.font=o.f;g.fillStyle=o.col;g.textAlign=o.a||'left';g.fillText(o.t,o.x,o.y)});
+ return new Promise(r=>c.toBlob(r,'image/png'))
+}
+async function dlPng(){
+ sync();if(!D.qs.length)return say('Chưa có câu hỏi để tạo ảnh',1);
+ try{const a=document.createElement('a');a.href=URL.createObjectURL(await examPng(D));a.download='De_'+(D.id||'moi')+'.png';a.click()}
+ catch(e){say('Không tạo được ảnh: '+e.message,1)}
+}
 
 /* --- Cài đặt --- */
 function tSet(){
