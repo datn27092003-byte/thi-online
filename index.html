@@ -146,9 +146,9 @@ function finish(auto){
  if(!auto){const n=A.exam.qs.filter((q,j)=>!did(q,A.ans[j])).length;if(!confirm(n?`Bạn còn ${n} câu chưa làm. Vẫn nộp bài?`:'Xác nhận nộp bài?'))return}
  clearInterval(T);
  const e=A.exam,wrong=[];let got=0,tot=0,right=0;
- const fin=e.qs.map((q,i)=>{const t=q.t||'mc',a=A.ans[i];return t==='order'?(Array.isArray(a)?a.map(j=>A.sh[i][j]).join(' '):''):t==='fill'?(typeof a==='string'?a.trim():''):isMan(q)?(a==='rec'?'rec':''):a}),auto=e.qs.filter(q=>!isMan(q)).length;
+ const fin=e.qs.map((q,i)=>{const t=q.t||'mc',a=A.ans[i];return t==='order'?(Array.isArray(a)?a.map(j=>A.sh[i][j]).join(' '):''):t==='fill'?(typeof a==='string'?a.trim():''):isMan(q)?(a==='rec'?'rec':''):a}),nAuto=e.qs.filter(q=>!isMan(q)).length;
  e.qs.forEach((q,i)=>{if(isMan(q))return;tot+=q.p;if(isOk(q,fin[i])){got+=q.p;right++}else wrong.push(i+1)});
- const r={sid:A.sid,time:new Date().toISOString(),name:A.name,cls:A.cls,id:e.id,exam:e.name,score:Math.round(got/(tot||1)*1000)/100,right,total:auto,wrong,ans:fin};
+ const r={sid:A.sid,time:new Date().toISOString(),name:A.name,cls:A.cls,id:e.id,exam:e.name,score:Math.round(got/(tot||1)*1000)/100,right,total:nAuto,wrong,ans:fin};
  LAST={r,exam:e,sent:false,media:{...MED}};Object.keys(MED).forEach(k=>delete MED[k]);LS('last',LAST);localStorage.removeItem('draft');A=null;
  view('result');send()
 }
